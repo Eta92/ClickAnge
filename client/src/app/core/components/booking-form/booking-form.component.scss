@@ -1,0 +1,320 @@
+// Booking Form Modal Styles — green/gold theme
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(var(--color-green-rgb), 0.6);
+  z-index: 1000;
+}
+
+.booking-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-cream);
+  border: 2px solid var(--color-sage);
+  border-radius: 16px;
+  padding: 0;
+  width: min(480px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  z-index: 1001;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-sage);
+
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-green);
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--color-sage);
+      cursor: pointer;
+      padding: 0 0.25rem;
+      line-height: 1;
+
+      &:hover {
+        color: var(--color-green);
+      }
+    }
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--color-sage);
+  }
+
+  // Offer summary card — matches home offer-card structure
+  .offer-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    background: var(--color-cream);
+    border: 1px solid var(--color-sage);
+    border-radius: 12px;
+
+    .summary-name {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-green);
+      align-self: flex-start;
+    }
+
+    .summary-body {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .summary-logo {
+      flex-shrink: 0;
+      width: 64px;
+      height: 64px;
+      background: white;
+      border: 1px solid var(--color-sage);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .food-icon {
+        font-size: 1.75rem;
+      }
+
+      img.food-icon-img,
+      span.food-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      img.food-icon-img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+      }
+    }
+
+    .summary-details {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .summary-meta-row {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .summary-price {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--color-green);
+    }
+
+    .summary-size {
+      font-size: 0.875rem;
+      color: var(--color-sage);
+    }
+
+    .summary-description {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .summary-pickup {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--color-sage);
+    }
+  }
+
+  // Multi-product selection list
+  .products-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .product-select-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-sage);
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .product-select-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .product-select-name {
+    font-weight: 700;
+    color: var(--color-green);
+  }
+
+  .product-select-meta {
+    font-size: 0.8rem;
+    color: var(--color-sage);
+  }
+
+  .product-select-quantity {
+    width: 72px;
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border: 1px solid #9ba07c;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    color: #4d4f37;
+
+    &:focus {
+      outline: none;
+      border-color: #4d4f37;
+      box-shadow: 0 0 0 2px rgba(77, 79, 55, 0.15);
+    }
+  }
+
+  // Form labels
+  .form-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4d4f37; // green primary
+
+    &--full {
+      min-width: 100%;
+    }
+
+    input,
+    textarea {
+      padding: 0.625rem 0.875rem;
+      border: 1px solid #9ba07c; // sage border
+      border-radius: 8px;
+      font-size: 1rem;
+      background: #fff;
+      color: #4d4f37; // green text
+      font-family: inherit;
+
+      &:focus {
+        outline: none;
+        border-color: #4d4f37; // green on focus
+        box-shadow: 0 0 0 2px rgba(77, 79, 55, 0.15); // green shadow
+      }
+
+      &::placeholder {
+        color: #b5ba9a; // lighter sage placeholder
+      }
+    }
+
+    input[type="number"] {
+      max-width: 120px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .input-hint {
+      font-size: 0.75rem;
+      color: #9ba07c; // sage
+      margin-top: 0.125rem;
+    }
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+
+  // Error message
+  .error-message {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    background: rgba(220, 80, 40, 0.1);
+    border-left: 3px solid #dc5028;
+    color: #dc5028;
+    font-size: 0.875rem;
+    border-radius: 6px;
+  }
+
+  // Buttons
+  .btn {
+    padding: 0.625rem 1.25rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      opacity 0.2s ease;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &.btn-primary {
+      background: #f4c575; // gold secondary
+      color: #4d4f37; // green text on gold
+
+      &:not(:disabled):hover {
+        background: #e1b27e; // tan on hover
+      }
+    }
+
+    &.btn-secondary {
+      background: transparent;
+      border: 1px solid #9ba07c; // sage border
+      color: #4d4f37; // green text
+
+      &:not(:disabled):hover {
+        background: rgba(155, 160, 124, 0.1); // sage tint
+      }
+    }
+  }
+
+  .no-offer {
+    padding: 2rem;
+    text-align: center;
+    color: #9ba07c; // sage
+    font-size: 0.875rem;
+  }
+}

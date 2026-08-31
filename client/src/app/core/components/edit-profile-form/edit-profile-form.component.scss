@@ -1,0 +1,176 @@
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.profile-modal-card {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem 2.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h2 {
+    margin: 0 0 0.75rem;
+    text-align: center;
+    color: #4d4f37; // green primary
+  }
+}
+
+.manager-badge {
+  display: block;
+  width: fit-content;
+  margin: 0 auto 1rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: #f4c575; // gold secondary
+  color: #4d4f37; // green primary
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.close-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #888;
+  padding: 4px 8px;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #4d4f37; // green primary on hover
+  }
+}
+
+.logout-btn {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #888;
+  padding: 4px 8px;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #4d4f37; // green primary on hover
+  }
+}
+
+.form-group {
+  margin-bottom: 1rem;
+
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #4d4f37; // green primary
+  }
+
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"] {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    color: #000; // black font
+    background: #fff;
+
+    &::placeholder {
+      color: #9ba07c; // sage placeholder text
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #4d4f37; // green primary focus ring
+      box-shadow: 0 0 0 2px rgba(77, 79, 55, 0.2);
+    }
+
+    &:disabled {
+      background: #f2f2ee;
+      color: #888;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.form-group-checkbox {
+  .checkbox-title {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #4d4f37; // green primary, matches other field labels
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 400;
+    color: #000; // black font, matches text inputs
+    background: #fff;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    accent-color: #4d4f37; // green primary
+  }
+}
+
+button[type="submit"] {
+  width: 100%;
+  padding: 0.65rem;
+  margin-top: 0.5rem;
+  background: #4d4f37; // green primary
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+
+  &:hover {
+    background: #9ba07c; // sage on hover
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.error-message {
+  background: rgba(225, 140, 126, 0.1); // rose light tint
+  color: #e18c7e; // rose secondary
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  border-left: 3px solid #e18c7e; // rose accent bar
+}

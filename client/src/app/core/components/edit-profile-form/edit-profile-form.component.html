@@ -1,0 +1,87 @@
+<div class="profile-modal-overlay" (click)="onClose()">
+  <div class="profile-modal-card" (click)="$event.stopPropagation()">
+    <!-- Logout button at top left -->
+    <button
+      class="logout-btn"
+      type="button"
+      (click)="logout()"
+      aria-label="Se déconnecter"
+      title="Se déconnecter"
+    >
+      <span class="material-icons">logout</span>
+    </button>
+
+    <!-- Close button -->
+    <button
+      class="close-btn"
+      type="button"
+      (click)="onClose()"
+      aria-label="Fermer"
+    >
+      ✕
+    </button>
+
+    <h2>Mon profil</h2>
+
+    @if (profile?.isManager) {
+      <span class="manager-badge">Gestionnaire</span>
+    }
+
+    <!-- Error message -->
+    @if (errorMessage) {
+      <div class="error-message">{{ errorMessage }}</div>
+    }
+
+    <form [ngClass]="{ submitting: isSubmitting }" (ngSubmit)="submit()">
+      <div class="form-group">
+        <label for="profile-email">Adresse e-mail</label>
+        <input
+          id="profile-email"
+          type="email"
+          [value]="profile?.email"
+          disabled
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="profile-name">Nom</label>
+        <input
+          id="profile-name"
+          type="text"
+          [(ngModel)]="name"
+          name="name"
+          required
+          placeholder="Votre nom"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="profile-phone">Téléphone</label>
+        <input
+          id="profile-phone"
+          type="tel"
+          [(ngModel)]="phone"
+          name="phone"
+          placeholder="Votre numéro de téléphone"
+        />
+      </div>
+
+      <div class="form-group form-group-checkbox">
+        <span class="checkbox-title">Notifications</span>
+        <label for="profile-subscribed">
+          <input
+            id="profile-subscribed"
+            type="checkbox"
+            [(ngModel)]="isSubscribed"
+            name="isSubscribed"
+          />
+          Recevoir les notifications sur les nouvelles offres par e-mail
+        </label>
+      </div>
+
+      <button type="submit" [disabled]="isSubmitting || !name">
+        {{ isSubmitting ? "Enregistrement..." : "Enregistrer" }}
+      </button>
+    </form>
+  </div>
+</div>

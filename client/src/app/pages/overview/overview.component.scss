@@ -1,0 +1,377 @@
+// Overview page styles — booking table for managers
+:host {
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.overview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.back-link {
+  align-self: flex-start;
+  text-decoration: none;
+  color: var(--color-sage);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.375rem 0;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: var(--color-green);
+  }
+}
+
+.header-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-cream) 0%,
+    rgba(139, 189, 124, 0.08) 100%
+  );
+  border: 1px solid var(--color-sage);
+  border-radius: 16px;
+}
+
+@media (min-width: 640px) {
+  .header-card {
+    flex-direction: row;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+}
+
+.offer-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-green);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-sage) 25%,
+    rgba(139, 189, 124, 0.3) 50%,
+    var(--color-sage) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.booking-count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  background: var(--color-green);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.count-label {
+  font-size: 0.8125rem;
+  color: var(--color-sage);
+  font-weight: 500;
+}
+
+.status-select-offer {
+  padding: 0.375rem 0.75rem;
+  background: #fff;
+  border: 1px solid var(--color-sage);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-green);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-green);
+    box-shadow: 0 0 0 3px rgba(76, 145, 69, 0.15);
+  }
+
+  &:hover {
+    border-color: var(--color-green);
+  }
+}
+
+.btn-toggle-all {
+  padding: 0.375rem 0.75rem;
+  background: #fff;
+  border: 1px solid var(--color-sage);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-green);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    background: rgba(139, 189, 124, 0.1);
+    border-color: var(--color-green);
+  }
+}
+
+.btn-export {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-gold);
+  color: var(--color-green);
+  border: 1px solid var(--color-sage);
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    background: var(--color-tan);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(139, 189, 124, 0.25);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.bookings-table-wrapper {
+  overflow-x: auto;
+  background: var(--color-cream);
+  border: 1px solid var(--color-sage);
+  border-radius: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--color-sage);
+  font-size: 0.875rem;
+}
+
+.bookings-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  thead {
+    th {
+      padding: 0.875rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-sage);
+      background: rgba(139, 189, 124, 0.1);
+      border-bottom: 2px solid var(--color-sage);
+    }
+  }
+
+  tbody {
+    tr {
+      transition: background 0.15s ease;
+
+      &:hover {
+        background: rgba(139, 189, 124, 0.06);
+      }
+
+      td {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        color: #333;
+        border-bottom: 1px solid rgba(139, 189, 124, 0.15);
+      }
+
+      &.status-pending td {
+        background: rgba(255, 193, 7, 0.06);
+      }
+
+      &.status-confirmed td {
+        background: rgba(76, 175, 80, 0.04);
+      }
+
+      &.status-cancelled td {
+        background: rgba(244, 67, 54, 0.04);
+        opacity: 0.6;
+      }
+
+      &.status-fulfilled td {
+        background: rgba(33, 150, 243, 0.04);
+      }
+    }
+  }
+}
+
+.email-cell {
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.purchases-cell {
+  font-size: 0.85rem;
+}
+
+.product-tile {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  background: rgba(139, 189, 124, 0.15);
+  border: 1px solid var(--color-sage);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--color-green);
+}
+
+.products-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.5rem;
+  background: none;
+  border: 1px solid var(--color-sage);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-green);
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(139, 189, 124, 0.1);
+  }
+
+  .toggle-caret {
+    display: inline-block;
+    transition: transform 0.2s ease;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+.products-expanded-row {
+  td {
+    background: rgba(139, 189, 124, 0.05);
+    border-bottom: 1px solid rgba(139, 189, 124, 0.15);
+  }
+}
+
+.product-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.note-cell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &.status-pending {
+    background: rgba(255, 193, 7, 0.15);
+    color: #b8860b;
+  }
+
+  &.status-confirmed {
+    background: rgba(76, 175, 80, 0.15);
+    color: #2e7d32;
+  }
+
+  &.status-cancelled {
+    background: rgba(244, 67, 54, 0.12);
+    color: #c62828;
+  }
+
+  &.status-fulfilled {
+    background: rgba(33, 150, 243, 0.12);
+    color: #1565c0;
+  }
+}
+
+.date-cell {
+  width: auto;
+  min-width: 8rem;
+  max-width: 10rem;
+  white-space: nowrap;
+}
+
+.status-select {
+  width: auto;
+  min-width: 9rem;
+  max-width: 12rem;
+  padding: 8px 12px;
+  border: 1px solid var(--color-sage);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-green);
+    box-shadow: 0 0 0 2px rgba(var(--color-green-rgb), 0.2);
+  }
+}

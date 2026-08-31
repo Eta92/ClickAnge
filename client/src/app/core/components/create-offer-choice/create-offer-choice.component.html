@@ -1,0 +1,109 @@
+<!-- Create Offer Choice Modal -->
+<div class="modal-backdrop" (click)="cancel()"></div>
+
+<div class="choice-modal">
+  @if (view === "menu") {
+    <div class="modal-header">
+      <h2>Nouvelle offre</h2>
+      <button class="btn-close" (click)="cancel()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <button type="button" class="choice-card" (click)="selectScratch()">
+        <span class="choice-icon">📝</span>
+        <span class="choice-text">
+          <span class="choice-title">Partir de zéro</span>
+          <span class="choice-description"
+            >Créer une nouvelle offre vierge</span
+          >
+        </span>
+      </button>
+
+      <button type="button" class="choice-card" (click)="selectClone()">
+        <span class="choice-icon">📋</span>
+        <span class="choice-text">
+          <span class="choice-title">Dupliquer une offre existante</span>
+          <span class="choice-description"
+            >Réutiliser une offre précédente sans ses réservations</span
+          >
+        </span>
+      </button>
+
+      <button type="button" class="choice-card" (click)="selectExcel()">
+        <span class="choice-icon">📊</span>
+        <span class="choice-text">
+          <span class="choice-title">Importer un fichier Excel</span>
+          <span class="choice-description"
+            >Générer l'offre à partir d'un fichier</span
+          >
+        </span>
+      </button>
+    </div>
+  } @else {
+    <div class="modal-header">
+      <button type="button" class="btn-back" (click)="backToMenu()">
+        ← Retour
+      </button>
+      <h2>Choisir une offre à dupliquer</h2>
+      <button class="btn-close" (click)="cancel()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      @if (offers.length === 0) {
+        <p class="empty-state">Aucune offre à dupliquer pour le moment.</p>
+      } @else {
+        <div class="offer-pick-list">
+          @for (offer of offers; track offer.uuid) {
+            <div
+              class="offer-pick-card"
+              [class.expanded]="isExpanded(offer)"
+              (click)="chooseOfferToClone(offer)"
+            >
+              <span class="offer-pick-logo">
+                @if (offer.icon) {
+                  <img
+                    src="/assets/icons/{{ offer.icon }}.svg"
+                    alt="{{ offer.name }}"
+                  />
+                } @else {
+                  <span class="food-icon">🥦</span>
+                }
+              </span>
+              <span class="offer-pick-text">
+                <span class="offer-pick-title">{{ offer.name }}</span>
+                <span class="offer-pick-description">{{
+                  offer.description
+                }}</span>
+              </span>
+              <button
+                type="button"
+                class="btn-products-count"
+                (click)="toggleExpand(offer, $event)"
+              >
+                {{ offer.products.length }} produit{{
+                  offer.products.length > 1 ? "s" : ""
+                }}
+              </button>
+
+              @if (isExpanded(offer)) {
+                <div
+                  class="offer-pick-products"
+                  (click)="$event.stopPropagation()"
+                >
+                  @for (product of offer.products; track product.name) {
+                    <span class="product-tile">
+                      {{ product.name }} {{ product.unitPrice }}€{{
+                        getUnitLabel(product.unitType)
+                      }}
+                      ({{ product.remainingQuantity }})
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

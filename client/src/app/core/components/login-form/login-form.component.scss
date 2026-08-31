@@ -1,0 +1,126 @@
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.login-modal-card {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem 2.5rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  h2 {
+    margin: 0 0 1.5rem;
+    text-align: center;
+    color: #4d4f37; // green primary
+  }
+}
+
+.close-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #888;
+  padding: 4px 8px;
+
+  &:hover {
+    color: #4d4f37; // green primary on hover
+  }
+}
+
+.form-group {
+  margin-bottom: 1rem;
+
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #4d4f37; // green primary
+  }
+
+  input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    color: #000; // black font
+    background: #fff;
+
+    &::placeholder {
+      color: #9ba07c; // sage placeholder text
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #4d4f37; // green primary focus ring
+      box-shadow: 0 0 0 2px rgba(77, 79, 55, 0.2);
+    }
+  }
+}
+
+button[type="submit"] {
+  width: 100%;
+  padding: 0.65rem;
+  margin-top: 0.5rem;
+  background: #4d4f37; // green primary
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+
+  &:hover {
+    background: #9ba07c; // sage on hover
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-back {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.75rem;
+  background: none;
+  border: none;
+  color: #f4c575; // gold secondary
+  cursor: pointer;
+  font-size: 0.875rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.error-message {
+  background: rgba(225, 140, 126, 0.1); // rose light tint
+  color: #e18c7e; // rose secondary
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  border-left: 3px solid #e18c7e; // rose accent bar
+}
+
+.hint {
+  text-align: center;
+  color: #9ba07c; // sage
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}

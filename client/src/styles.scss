@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-green: #3d4228;
+  --color-sage: #7a8560;
+  --color-gold: #e8b94a;
+  --color-cream: #fdf8f0;
+  --color-rose: #d96c5a;
+  --color-tan: #d49a3e;
+
+  /* RGB variants for rgba() usage */
+  --color-green-rgb: 61, 66, 40;
+  --color-sage-rgb: 122, 133, 96;
+  --color-gold-rgb: 232, 185, 74;
+}
+
+/* Your custom styles below */

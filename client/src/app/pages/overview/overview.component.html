@@ -1,0 +1,127 @@
+<!-- Overview header -->
+<header class="overview-header">
+  <a routerLink="/" class="back-link">← Retour à l'accueil</a>
+
+  <div class="flex gap-4 header-card">
+    @if (offer) {
+      <h2 class="offer-title">{{ offer.name }}</h2>
+      <select
+        class="status-select-offer"
+        [value]="offer.status"
+        (change)="onOfferStatusChange($event)"
+      >
+        <option value="0">Brouillon</option>
+        <option value="1">Ouvert</option>
+        <option value="2">Fermé</option>
+        <option value="3">Terminé</option>
+      </select>
+      <div class="booking-count">
+        <span class="count-badge">{{ bookings().length }}</span>
+        <span class="count-label">réservation(s)</span>
+      </div>
+      @if (multiProductBookingIds().length > 0) {
+        <button
+          type="button"
+          class="btn-toggle-all"
+          (click)="toggleAllExpanded()"
+        >
+          {{ allExpanded() ? "Tout réduire" : "Tout développer" }}
+        </button>
+      }
+    }
+  </div>
+
+  <button class="btn-export" (click)="exportExcel()">Export Excel</button>
+</header>
+
+<!-- Booking table -->
+<div class="bookings-table-wrapper">
+  @if (bookings().length === 0) {
+    <p class="empty-state">Aucune réservation pour cette offre.</p>
+  } @else {
+    <table class="bookings-table">
+      <thead>
+        <tr>
+          <th>Clients</th>
+          <th>Email</th>
+          <th>Produits</th>
+          <th>Statut</th>
+          <th>Note</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (booking of bookings(); track booking.uuid) {
+          <tr
+            class="booking-row"
+            [class.status-pending]="booking.status === 0"
+            [class.status-confirmed]="booking.status === 1"
+            [class.status-cancelled]="booking.status === 2"
+            [class.status-fulfilled]="booking.status === 3"
+          >
+            <td>{{ booking.customerName || "--" }}</td>
+            <td class="email-cell">{{ booking.customerEmail }}</td>
+            <td class="purchases-cell">
+              @if (booking.purchases.length === 1) {
+                <span class="product-tile">
+                  {{ booking.purchases[0].name }}
+                  {{ booking.purchases[0].quantity }}
+                  {{ getProductUnit(booking.purchases[0].name) }}
+                </span>
+              } @else {
+                <button
+                  type="button"
+                  class="products-toggle"
+                  (click)="toggleBookingExpand(booking)"
+                >
+                  {{ booking.purchases.length }} produits
+                  <span
+                    class="toggle-caret"
+                    [class.open]="isBookingExpanded(booking)"
+                    >▾</span
+                  >
+                </button>
+              }
+            </td>
+            <td>
+              <select
+                class="status-select"
+                [value]="booking.status"
+                (change)="onStatusChange(booking, $event)"
+              >
+                <option value="0">En attente</option>
+                <option value="1">Confirmé</option>
+                <option value="2">Annulé</option>
+                <option value="3">Exécuté</option>
+              </select>
+            </td>
+            <td class="note-cell">{{ booking.note || "—" }}</td>
+            <td class="date-cell">
+              {{ booking.createdAt | date: "d MMM, HH:mm" }}
+            </td>
+          </tr>
+          @if (booking.purchases.length > 1 && isBookingExpanded(booking)) {
+            <tr class="products-expanded-row">
+              <td colspan="6">
+                <div class="product-tiles">
+                  @for (purchase of booking.purchases; track purchase.name) {
+                    <span class="product-tile">
+                      {{ purchase.name }} =
+                      {{ purchase.quantity }}
+                      {{ getProductUnit(purchase.name) }}
+                    </span>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  }
+</div>
+
+<!-- Embedded offer form (manager) -->
+@if (showOfferForm && offer) {
+  <app-offer-form [offer]="offer"></app-offer-form>
+}

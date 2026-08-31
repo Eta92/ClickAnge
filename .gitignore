@@ -1,0 +1,22 @@
+# edtitor
+.github
+.history
+.vscode
+
+# client
+client/.angular
+client/dist
+client/node_modules
+
+# server
+server/node_modules
+server/.env
+
+# IA
+.agents/
+.qwen/*
+graphify-out/*
+skills-lock.json
+
+# other projects
+supervisor/*

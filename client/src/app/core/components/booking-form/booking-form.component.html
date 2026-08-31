@@ -1,0 +1,100 @@
+<!-- Booking Form Modal -->
+<div class="modal-backdrop" (click)="cancel()"></div>
+
+<div class="booking-modal">
+  <div class="modal-header">
+    <h2>{{ booking ? "Modifier la réservation" : "Nouvelle réservation" }}</h2>
+    <button class="btn-close" (click)="cancel()">✕</button>
+  </div>
+
+  @if (offer) {
+    <div class="modal-body">
+      <!-- Offer summary -->
+      <div class="offer-summary">
+        <h3 class="summary-name">{{ offer.name }}</h3>
+        <div class="summary-body">
+          <div class="summary-logo">
+            @if (offer.icon) {
+              <img
+                src="/assets/icons/{{ offer.icon }}.svg"
+                alt="{{ offer.name }}"
+                class="food-icon-img"
+              />
+            } @else {
+              <span class="food-icon">🥦</span>
+            }
+          </div>
+          <div class="summary-details">
+            @if (offer.description) {
+              <p class="summary-description">{{ offer.description }}</p>
+            }
+            <p class="summary-pickup">
+              Retrait : {{ offer.pickupDate | date: "d MMM, HH:mm" }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Products list -->
+      <div class="products-selection">
+        @for (product of offer.products; track product.name) {
+          <div class="product-select-row">
+            <div class="product-select-info">
+              <span class="product-select-name">{{ product.name }}</span>
+              <span class="product-select-meta">
+                {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }} ·
+                {{ product.remainingQuantity }} disponible(s) ·
+                ({{ product.maximumOrder }} max)
+              </span>
+            </div>
+            <input
+              type="number"
+              class="product-select-quantity"
+              min="0"
+              [max]="getMaxQuantity(product)"
+              [ngModel]="getQuantity(product)"
+              (ngModelChange)="setQuantity(product, $event)"
+              (keydown)="onKeyDown($event)"
+            />
+          </div>
+        } @empty {
+          <p class="empty-state">Aucun produit disponible pour cette offre.</p>
+        }
+      </div>
+
+      <!-- Note textarea -->
+      <label class="form-label form-label--full">
+        Remarque (optionnel)
+        <textarea
+          [(ngModel)]="note"
+          placeholder="Demandes spéciales..."
+          rows="3"
+        ></textarea>
+      </label>
+
+      @if (errorMessage) {
+        <p class="error-message">{{ errorMessage }}</p>
+      }
+    </div>
+
+    <!-- Action buttons -->
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="cancel()">Annuler</button>
+      <button
+        class="btn btn-primary"
+        [disabled]="isSubmitting || selectedPurchases.length === 0"
+        (click)="submit()"
+      >
+        {{
+          isSubmitting
+            ? "Enregistrement..."
+            : booking
+              ? "Mettre à jour la réservation"
+              : "Confirmer la réservation"
+        }}
+      </button>
+    </div>
+  } @else {
+    <p class="no-offer">Aucune offre sélectionnée.</p>
+  }
+</div>

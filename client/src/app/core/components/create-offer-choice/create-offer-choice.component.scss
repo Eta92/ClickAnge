@@ -1,0 +1,257 @@
+/* Create Offer Choice Modal Styles — green/gold theme */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(var(--color-green-rgb), 0.6);
+  z-index: 1000;
+}
+
+.choice-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-cream);
+  border: 2px solid var(--color-sage);
+  border-radius: 16px;
+  padding: 0;
+  width: min(480px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  z-index: 1001;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-sage);
+
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-green);
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--color-sage);
+      cursor: pointer;
+      padding: 0 0.25rem;
+      line-height: 1;
+
+      &:hover {
+        color: var(--color-green);
+      }
+    }
+
+    .btn-back {
+      background: transparent;
+      border: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-sage);
+      cursor: pointer;
+      padding: 0.25rem 0.25rem 0.25rem 0;
+      white-space: nowrap;
+
+      &:hover {
+        color: var(--color-green);
+      }
+    }
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .empty-state {
+    color: var(--color-sage);
+    font-size: 0.9rem;
+    text-align: center;
+    margin: 0;
+  }
+
+  .offer-pick-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .offer-pick-card {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.75rem 1rem;
+    padding-right: 6.5rem;
+    background: #fff;
+    border: 2px solid var(--color-sage);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    transition:
+      border-color 0.15s ease,
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+
+    &:hover {
+      border-color: var(--color-green);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    &.expanded {
+      padding-bottom: 0.9rem;
+    }
+  }
+
+  .btn-products-count {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.75rem;
+    background: var(--color-cream);
+    border: 1px solid var(--color-sage);
+    border-radius: 999px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-green);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--color-sage);
+      color: #fff;
+    }
+  }
+
+  .offer-pick-products {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-top: 0.6rem;
+    margin-top: 0.4rem;
+    border-top: 1px dashed var(--color-sage);
+    cursor: default;
+
+    .product-tile {
+      background: var(--color-cream);
+      border: 1px solid var(--color-sage);
+      border-radius: 8px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.75rem;
+      color: var(--color-green);
+      white-space: nowrap;
+    }
+  }
+
+  .offer-pick-logo {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .food-icon {
+      font-size: 1.5rem;
+    }
+  }
+
+  .offer-pick-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .offer-pick-title {
+    font-weight: 700;
+    color: var(--color-green);
+    font-size: 0.9rem;
+  }
+
+  .offer-pick-description {
+    font-size: 0.78rem;
+    color: var(--color-sage);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .choice-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border: 2px solid var(--color-sage);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    transition:
+      border-color 0.15s ease,
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+
+    &:hover {
+      border-color: var(--color-green);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  .choice-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .choice-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .choice-title {
+    font-weight: 700;
+    color: var(--color-green);
+    font-size: 0.95rem;
+  }
+
+  .choice-description {
+    font-size: 0.8rem;
+    color: var(--color-sage);
+  }
+}

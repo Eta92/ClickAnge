@@ -1,0 +1,246 @@
+<!-- Offer Form Modal -->
+<div class="modal-backdrop" (click)="cancel()"></div>
+
+<div class="offer-modal">
+  <div class="modal-header">
+    <h2>{{ formTitle }}</h2>
+    <button class="btn-close" (click)="cancel()">✕</button>
+  </div>
+
+  <form (ngSubmit)="submit()" #offerForm="ngForm" class="modal-body">
+    <!-- Name -->
+    <label class="form-label form-label--full">
+      Nom de l'offre
+      <input
+        type="text"
+        name="name"
+        [(ngModel)]="formValue.name"
+        placeholder="Ex: Panier de légumes bio"
+        required
+        #nameCtrl="ngModel"
+      />
+    </label>
+
+    <!-- Description -->
+    <label class="form-label form-label--full">
+      Description
+      <textarea
+        name="description"
+        [(ngModel)]="formValue.description"
+        placeholder="Description détaillée de l'offre..."
+        rows="3"
+      ></textarea>
+    </label>
+
+    <!-- Icon Picker -->
+    <div class="form-label form-label--full">
+      <span style="margin-bottom: 0.5rem; display: block"
+        >Icône de l'offre</span
+      >
+      <div class="icon-picker-wrapper">
+        <button
+          type="button"
+          class="icon-picker-trigger"
+          (click)="showIconPicker = !showIconPicker"
+        >
+          @if (selectedIcon) {
+            <img
+              src="/assets/icons/{{ selectedIcon }}.svg"
+              alt="{{ selectedIcon }}"
+              class="icon-preview"
+            />
+            <span>{{ selectedIcon }}</span>
+          } @else {
+            <span class="icon-placeholder">Choisir une icône...</span>
+          }
+        </button>
+
+        @if (showIconPicker) {
+          <div class="icon-picker-dropdown">
+            <div class="icon-grid">
+              @for (icon of ICON_LIST; track icon) {
+                <button
+                  type="button"
+                  class="icon-option"
+                  [class.icon-option--selected]="selectedIcon === icon"
+                  (click)="selectedIcon = icon; showIconPicker = false"
+                >
+                  <img src="/assets/icons/{{ icon }}.svg" alt="{{ icon }}" />
+                  <span>{{ icon }}</span>
+                </button>
+              } @empty {
+                <p class="no-icons">Aucune icône disponible.</p>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Products list -->
+    <div class="form-label form-label--full">
+      <span style="margin-bottom: 0.5rem; display: block">Produits</span>
+
+      <div class="products-list">
+        @for (product of formValue.products; track $index) {
+          <div class="product-row">
+            @if ((formValue.products?.length ?? 0) > 1) {
+              <button
+                type="button"
+                class="btn-remove-product"
+                (click)="removeProduct($index)"
+                title="Supprimer ce produit"
+              >
+                ✕
+              </button>
+            }
+
+            <div class="form-row">
+              <label class="form-label form-label--twothird">
+                Nom du produit {{ $index + 1 }}
+                <input
+                  type="text"
+                  name="productName{{ $index }}"
+                  [(ngModel)]="product.name"
+                  placeholder="Ex: Tomates"
+                  required
+                />
+              </label>
+
+              <label class="form-label form-label--third">
+                Type d'unité
+                <select
+                  name="productUnitType{{ $index }}"
+                  [(ngModel)]="product.unitType"
+                  required
+                >
+                  <option [ngValue]="ProductUnit.PIECE">Pièce</option>
+                  <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
+                  <option [ngValue]="ProductUnit.LITER">Litre</option>
+                  <option [ngValue]="ProductUnit.OTHER">Autre</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-row form-row--triple">
+              <label class="form-label form-label--smallthird">
+                Prix unitaire (€)
+                <input
+                  type="number"
+                  name="productUnitPrice{{ $index }}"
+                  [(ngModel)]="product.unitPrice"
+                  min="0.01"
+                  step="0.01"
+                  required
+                />
+              </label>
+
+              <label class="form-label form-label--third">
+                Quantité disponible
+                <input
+                  type="number"
+                  name="productTotalQuantity{{ $index }}"
+                  [(ngModel)]="product.totalQuantity"
+                  min="1"
+                  required
+                />
+              </label>
+
+              <label class="form-label form-label--third">
+                Commande Min / Max
+                <div class="min-max-row">
+                  <input
+                    type="number"
+                    name="productMinimumOrder{{ $index }}"
+                    [(ngModel)]="product.minimumOrder"
+                    min="1"
+                    step="1"
+                    required
+                  />
+                  <input
+                    type="number"
+                    name="productMaximumOrder{{ $index }}"
+                    [(ngModel)]="product.maximumOrder"
+                    min="1"
+                    step="1"
+                    required
+                  />
+                </div>
+              </label>
+            </div>
+          </div>
+        }
+      </div>
+
+      <button type="button" class="btn-add-product" (click)="addProduct()">
+        + Ajouter un produit
+      </button>
+    </div>
+
+    <!-- Pickup Date -->
+    <label class="form-label form-label--full">
+      Date de retrait
+      <input
+        type="date"
+        name="pickupDate"
+        [(ngModel)]="pickupDateLocal"
+        required
+        (change)="onPickupDateChange()"
+      />
+    </label>
+
+    <!-- Pickup Window -->
+    <div class="form-row">
+      <label class="form-label form-label--half">
+        Début créneau
+        <input
+          type="time"
+          name="pickupWindowStart"
+          [(ngModel)]="windowStartLocal"
+          required
+          (change)="onWindowChange()"
+        />
+      </label>
+
+      <label class="form-label form-label--half">
+        Fin créneau
+        <input
+          type="time"
+          name="pickupWindowEnd"
+          [(ngModel)]="windowEndLocal"
+          required
+          (change)="onWindowChange()"
+        />
+      </label>
+    </div>
+
+    <!-- Status -->
+    <label class="form-label form-label--full">
+      Statut
+      <select name="status" [(ngModel)]="formValue.status" required>
+        <option [ngValue]="OfferStatus.DRAFT">Brouillon</option>
+        <option [ngValue]="OfferStatus.OPEN">Ouvert</option>
+        <option [ngValue]="OfferStatus.CLOSED">Fermé</option>
+      </select>
+    </label>
+
+    <!-- Error message -->
+    @if (errorMessage) {
+      <p class="error-message">{{ errorMessage }}</p>
+    }
+
+    <!-- Action buttons -->
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="cancel()">
+        Annuler
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="isSubmitting || !offerForm.valid"
+      >
+        {{ submitButtonText }}
+      </button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,134 @@
+<div class="login-modal-overlay" (click)="onClose()">
+  <div class="login-modal-card" (click)="$event.stopPropagation()">
+    <!-- Close button -->
+    <button
+      class="close-btn"
+      type="button"
+      (click)="onClose()"
+      aria-label="Close login"
+    >
+      ✕
+    </button>
+
+    <h2>Connexion</h2>
+
+    <!-- Error message -->
+    @if (loginService.errorMessage()) {
+      <div class="error-message">{{ loginService.errorMessage() }}</div>
+    }
+
+    <!-- Step 1: Email + Name -->
+    @if (loginService.step() === "email") {
+      <form
+        [ngClass]="{ submitting: loginService.isSubmitting() }"
+        (ngSubmit)="requestCode()"
+      >
+        <div class="form-group">
+          <label for="login-name">Nom</label>
+          <input
+            id="login-name"
+            type="text"
+            [ngModel]="loginService.name()"
+            (ngModelChange)="onNameChange($event)"
+            name="name"
+            required
+            placeholder="Votre nom"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="login-email">Adresse e-mail</label>
+          <input
+            id="login-email"
+            type="email"
+            [ngModel]="loginService.email()"
+            (ngModelChange)="onEmailChange($event)"
+            name="email"
+            required
+            placeholder="vous@exemple.com"
+          />
+        </div>
+
+        <button
+          type="submit"
+          [disabled]="
+            loginService.isSubmitting() ||
+            !loginService.email() ||
+            !loginService.name()
+          "
+        >
+          {{
+            loginService.isSubmitting()
+              ? "Envoi du code..."
+              : "Envoyer le code de vérification"
+          }}
+        </button>
+      </form>
+    }
+
+    <!-- Step 2: Verification Code -->
+    @if (loginService.step() === "code") {
+      <form
+        [ngClass]="{ submitting: loginService.isSubmitting() }"
+        (ngSubmit)="confirmCode()"
+      >
+        <p class="hint">
+          Nous avons envoyé un code à
+          <strong>{{ loginService.email() }}</strong>
+        </p>
+
+        <div class="form-group">
+          <label for="login-code">Code de vérification</label>
+          <input
+            id="login-code"
+            type="text"
+            [ngModel]="loginService.code()"
+            (ngModelChange)="onCodeChange($event)"
+            name="code"
+            required
+            placeholder="Entrez le code à 6 chiffres"
+            maxlength="10"
+          />
+        </div>
+
+        <button
+          type="submit"
+          [disabled]="loginService.isSubmitting() || !loginService.code()"
+        >
+          {{ loginService.isSubmitting() ? "Vérification..." : "Vérifier" }}
+        </button>
+
+        <button type="button" class="btn-back" (click)="backToEmail()">
+          Retour à l'e-mail
+        </button>
+      </form>
+    }
+
+    <!-- Step 3: Success -->
+    @if (loginService.step() === "success") {
+      <div class="success-message">
+        <svg
+          width="64"
+          height="64"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#10b981"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <h3>Connexion réussie !</h3>
+        <p>
+          Bienvenue, {{ loginService.name() }} ! Votre adresse e-mail a été
+          vérifiée.
+        </p>
+        <button type="button" class="btn-close" (click)="onClose()">
+          Fermer
+        </button>
+      </div>
+    }
+  </div>
+</div>
