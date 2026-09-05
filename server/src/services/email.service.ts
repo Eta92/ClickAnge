@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { Offer } from '../models/offer.model';
 
 export class EmailService {
   public static resend: Resend;
@@ -26,15 +27,36 @@ export class EmailService {
     }
   }
 
-  public static async sendOrderConfirmation({ to, orderId, customerName }) {
-    const { data, error } = await this.resend.emails.send({
-      from: "Click'Ange <clickange-verify@resend.dev>", // must be a verified domain
+  private static unsubscribeFooter(resignationCode: string): string {
+    const unsubscribeUrl = `${process.env.clientOrigin || 'https://clickange.etappli.fr'}/unsubscribe/${resignationCode}`;
+    return `
+      <p style="margin-top: 24px; font-size: 12px; color: #888;">
+        Vous recevez cet email car vous êtes abonné aux notifications de Click'Ange.
+        <a href="${unsubscribeUrl}">Se désabonner</a>
+      </p>
+    `;
+  }
+
+  public static async sendOfferPublished({
+    to,
+    offer,
+    customerName,
+    resignationCode,
+  }: {
+    to: string;
+    offer: Offer;
+    customerName?: string;
+    resignationCode: string;
+  }): Promise<void> {
+    const { error } = await this.resend.emails.send({
+      from: "Click'Ange <clickange-nouveau@clickange.etappli.fr>", // must be a verified domain
       to,
-      subject: `Order #${orderId} confirmed`,
+      subject: `Nouvelle offre disponible dans le reseau des anges : ${offer.name}`,
       html: `
-      <h2>Thanks ${customerName}!</h2>
-      <p>Your order <strong>#${orderId}</strong> has been received.</p>
-      <p>We'll notify you when it's ready for pickup.</p>
+      <h2>Bonjour ${customerName || ''}</h2>
+      <h3>${offer.name}</h3>
+      <p>${offer.publishMessage}</p>
+      ${this.unsubscribeFooter(resignationCode)}
     `,
     });
 
@@ -42,7 +64,35 @@ export class EmailService {
       console.error('Resend error:', error);
       throw new Error(error.message);
     }
+  }
 
-    return data; // contains the email id
+  public static async sendBookingConfirmed({
+    to,
+    offer,
+    customerName,
+    resignationCode,
+  }: {
+    to: string;
+    offer: Offer;
+    customerName?: string;
+    resignationCode: string;
+  }): Promise<void> {
+    const pickupDate = new Date(offer.pickupDate).toLocaleDateString('fr-FR');
+    const { error } = await this.resend.emails.send({
+      from: "Click'Ange <clickange-confirmation@clickange.etappli.fr>", // must be a verified domain
+      to,
+      subject: `Votre commande est confirmée : ${offer.name}`,
+      html: `
+      <h2>Bonjour ${customerName || ''}</h2>
+      <p>L'offre <strong>${offer.name}</strong> est maintenant fermée et votre commande est confirmée.</p>
+      <p>Merci de vous présenter le <strong>${pickupDate}</strong> entre <strong>${offer.pickupWindowStart}</strong> et <strong>${offer.pickupWindowEnd}</strong> pour le retrait.</p>
+      ${this.unsubscribeFooter(resignationCode)}
+    `,
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error(error.message);
+    }
   }
 }

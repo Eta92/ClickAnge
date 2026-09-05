@@ -214,16 +214,6 @@
       </label>
     </div>
 
-    <!-- Status -->
-    <label class="form-label form-label--full">
-      Statut
-      <select name="status" [(ngModel)]="formValue.status" required>
-        <option [ngValue]="OfferStatus.DRAFT">Brouillon</option>
-        <option [ngValue]="OfferStatus.OPEN">Ouvert</option>
-        <option [ngValue]="OfferStatus.CLOSED">Fermé</option>
-      </select>
-    </label>
-
     <!-- Error message -->
     @if (errorMessage) {
       <p class="error-message">{{ errorMessage }}</p>
@@ -241,6 +231,93 @@
       >
         {{ submitButtonText }}
       </button>
+      @if (canPublish && !showPublishSection) {
+        <button
+          type="button"
+          class="btn btn-gold"
+          (click)="openPublishSection()"
+        >
+          Publier l'offre
+        </button>
+      }
+      @if (canClose && !showCloseSection) {
+        <button type="button" class="btn btn-gold" (click)="openCloseSection()">
+          Fermer l'offre
+        </button>
+      }
     </div>
+
+    <!-- Publish section -->
+    @if (showPublishSection) {
+      <div class="publish-section">
+        <label class="form-label form-label--full">
+          Message de publication
+          <textarea
+            name="publishMessage"
+            [(ngModel)]="publishMessageDraft"
+            placeholder="Message envoyé aux clients abonnés..."
+            rows="4"
+          ></textarea>
+        </label>
+
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="cancelPublishSection()"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isPublishing"
+            (click)="publish(false)"
+          >
+            Publier simplement
+          </button>
+          <button
+            type="button"
+            class="btn btn-gold"
+            [disabled]="isPublishing"
+            (click)="publish(true)"
+          >
+            Publier avec email
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Close section -->
+    @if (showCloseSection) {
+      <div class="publish-section">
+        <p>Fermer cette offre confirmera toutes les commandes en cours.</p>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="cancelCloseSection()"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isClosing"
+            (click)="closeOffer(false)"
+          >
+            Fermer silencieusement
+          </button>
+          <button
+            type="button"
+            class="btn btn-gold"
+            [disabled]="isClosing"
+            (click)="closeOffer(true)"
+          >
+            Fermer avec email
+          </button>
+        </div>
+      </div>
+    }
   </form>
 </div>

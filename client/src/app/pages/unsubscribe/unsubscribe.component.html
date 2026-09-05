@@ -1,0 +1,15 @@
+<div class="unsubscribe-page">
+  <div class="unsubscribe-card">
+    @if (state === "loading") {
+      <p>Traitement de votre demande...</p>
+    }
+    @if (state === "success") {
+      <h2>Désabonnement confirmé</h2>
+      <p>Vous ne recevrez plus d'emails de publication d'offres.</p>
+    }
+    @if (state === "error") {
+      <h2>Une erreur est survenue</h2>
+      <p>{{ errorMessage }}</p>
+    }
+  </div>
+</div>

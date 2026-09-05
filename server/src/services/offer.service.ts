@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { Offer, OfferStatus, Product, ProductUnit } from '../models/offer.model';
+import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
 
@@ -80,7 +81,7 @@ export class OfferService {
       pickupDate: data.pickupDate,
       pickupWindowStart: data.pickupWindowStart,
       pickupWindowEnd: data.pickupWindowEnd,
-      status: OfferStatus.OPEN,
+      status: OfferStatus.DRAFT,
       createdAt: Date.now(),
     };
 
@@ -146,6 +147,44 @@ export class OfferService {
     offer.updatedAt = Date.now();
     await MongoService.upsertOffer(offer);
     io?.emit('OfferUpdated', offer);
+    return offer;
+  }
+
+  // switches a DRAFT offer to OPEN, storing the manager's publish message and optionally emailing subscribers
+  public static async publishOffer(
+    io: SocketServer,
+    uuid: string,
+    publishMessage: string,
+    notifySubscribers: boolean
+  ): Promise<Offer | null> {
+    const offer = this.offerMap[uuid];
+    if (!offer) return null;
+
+    offer.status = OfferStatus.OPEN;
+    offer.publishMessage = publishMessage;
+    offer.publishedAt = Date.now();
+    offer.updatedAt = Date.now();
+    await MongoService.upsertOffer(offer);
+    io?.emit('OfferUpdated', offer);
+
+    if (notifySubscribers) {
+      await CustomerService.notifySubscribers(offer);
+    }
+
+    return offer;
+  }
+
+  // switches an OPEN offer to CLOSED — booking-confirmation emails (if any) are sent by the caller
+  public static async closeOffer(io: SocketServer, uuid: string): Promise<Offer | null> {
+    const offer = this.offerMap[uuid];
+    if (!offer) return null;
+
+    offer.status = OfferStatus.CLOSED;
+    offer.closedAt = Date.now();
+    offer.updatedAt = Date.now();
+    await MongoService.upsertOffer(offer);
+    io?.emit('OfferUpdated', offer);
+
     return offer;
   }
 }

@@ -17,6 +17,13 @@ const routes: Routes = [
     loadChildren: () =>
       import('./pages/overview/overview.module').then((m) => m.OverviewModule),
   },
+  {
+    path: 'unsubscribe',
+    loadChildren: () =>
+      import('./pages/unsubscribe/unsubscribe.module').then(
+        (m) => m.UnsubscribeModule,
+      ),
+  },
 ];
 
 @NgModule({

@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Socket, Server as SocketServer } from 'socket.io';
+import { BookingStatus } from '../models/booking.model';
 import { OfferStatus } from '../models/offer.model';
 import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
@@ -74,6 +75,26 @@ export class SocketService {
 
       socket.on('updateOfferStatus', async (data: { uuid: string; status: OfferStatus }) => {
         await OfferService.updateOfferStatus(this.io, data.uuid, data.status);
+      });
+
+      socket.on('publishOffer', async (data: { uuid: string; publishMessage: string; notifySubscribers: boolean }) => {
+        try {
+          await OfferService.publishOffer(this.io, data.uuid, data.publishMessage, data.notifySubscribers);
+        } catch (err: any) {
+          socket.emit('ToasterError', err.message);
+        }
+      });
+
+      socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean }) => {
+        try {
+          const offer = await OfferService.closeOffer(this.io, data.uuid);
+          if (offer && data.notifyCustomers) {
+            const bookings = BookingService.getBookingsForOffer(data.uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
+            await CustomerService.notifyBookingConfirmed(offer, bookings);
+          }
+        } catch (err: any) {
+          socket.emit('ToasterError', err.message);
+        }
       });
 
       // ================================
@@ -203,6 +224,15 @@ export class SocketService {
             isSubscribed: data.isSubscribed,
           });
           socket.emit('CustomerProfileUpdated', updated);
+        } catch (err: any) {
+          socket.emit('ToasterError', err.message);
+        }
+      });
+
+      socket.on('unsubscribeCustomer', async (data: { resignationCode: string }) => {
+        try {
+          const customer = await CustomerService.unsubscribeByCode(data.resignationCode);
+          socket.emit('CustomerUnsubscribed', { email: customer.email });
         } catch (err: any) {
           socket.emit('ToasterError', err.message);
         }

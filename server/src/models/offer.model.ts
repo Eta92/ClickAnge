@@ -12,6 +12,9 @@ export interface Offer {
   status: OfferStatus;
   createdAt: number;
   updatedAt?: number;
+  publishMessage?: string;
+  publishedAt?: number;
+  closedAt?: number;
 }
 
 export interface Product {

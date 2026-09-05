@@ -10,8 +10,10 @@ export interface Offer {
   pickupWindowStart: number; // epoch ms, sart of pickup
   pickupWindowEnd: number; // epoch ms, end of pickup
   status: OfferStatus;
-  createdAt: number;
-  updatedAt?: number;
+  createdAt?: number;
+  publishedAt?: number;
+  publishMessage?: string;
+  closedAt?: number;
 }
 
 export interface Product {

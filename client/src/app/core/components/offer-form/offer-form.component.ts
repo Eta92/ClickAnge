@@ -103,8 +103,19 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   selectedIcon: OfferIcon | null = null;
   showIconPicker = false;
 
+  // publish section state — manager can no longer set status directly
+  showPublishSection = false;
+  publishMessageDraft = '';
+  isPublishing = false;
+
+  // close section state
+  showCloseSection = false;
+  isClosing = false;
+
   private _createSub?: Subscription;
   private _updateSub?: Subscription;
+  private _publishSub?: Subscription;
+  private _closeSub?: Subscription;
 
   formValue: Partial<Offer> = {};
   isSubmitting = false;
@@ -120,6 +131,8 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   ngOnDestroy(): void {
     this._createSub?.unsubscribe();
     this._updateSub?.unsubscribe();
+    this._publishSub?.unsubscribe();
+    this._closeSub?.unsubscribe();
   }
 
   // Computed properties for lifecycle-aware UI
@@ -140,12 +153,17 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     if (this.isSubmitting) {
       return 'Enregistrement...';
     }
-    if (this.isEditing) {
-      return this.offer?.status === OfferStatus.DRAFT
-        ? "Publier l'offre"
-        : 'Mettre à jour';
-    }
-    return "Créer l'offre";
+    return this.isEditing ? 'Mettre à jour' : "Créer l'offre";
+  }
+
+  /** Publish button only makes sense for an already-created offer still in DRAFT */
+  get canPublish(): boolean {
+    return this.isEditing && this.offer?.status === OfferStatus.DRAFT;
+  }
+
+  /** Close button only makes sense for an already-created offer currently OPEN */
+  get canClose(): boolean {
+    return this.isEditing && this.offer?.status === OfferStatus.OPEN;
   }
 
   // date-only binding (YYYY-MM-DD)
@@ -180,7 +198,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         pickupDate: now.getTime(),
         pickupWindowStart: new Date(today + 'T09:00').getTime(),
         pickupWindowEnd: new Date(today + 'T18:00').getTime(),
-        status: OfferStatus.DRAFT,
+        publishMessage: '',
       };
       this.selectedIcon = null;
       this.pickupDateLocal = today;
@@ -325,7 +343,6 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
           pickupDate: this.formValue.pickupDate!,
           pickupWindowStart: this.formValue.pickupWindowStart!,
           pickupWindowEnd: this.formValue.pickupWindowEnd!,
-          status: this.formValue.status ?? OfferStatus.DRAFT,
         },
       });
 
@@ -397,8 +414,108 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
+  openPublishSection(): void {
+    this.publishMessageDraft = this.formValue.publishMessage ?? '';
+    this.showPublishSection = true;
+  }
+
+  cancelPublishSection(): void {
+    this.showPublishSection = false;
+  }
+
+  publish(notifySubscribers: boolean): void {
+    if (!this.offer?.uuid || this.isPublishing) return;
+
+    this.isPublishing = true;
+    this.errorMessage = null;
+    const offerUuid = this.offer.uuid;
+    let settled = false;
+
+    this.socketService.emit('publishOffer', {
+      uuid: offerUuid,
+      publishMessage: this.publishMessageDraft,
+      notifySubscribers,
+    });
+
+    this._publishSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
+      next: (serverOffer) => {
+        if (serverOffer.uuid === offerUuid && !settled) {
+          settled = true;
+          this.isPublishing = false;
+          this.showPublishSection = false;
+          this.saved.emit(serverOffer);
+        }
+      },
+      error: (err) => {
+        console.error('Failed to publish offer:', err);
+        if (!settled) {
+          settled = true;
+          this.errorMessage = "Échec de la publication de l'offre.";
+          this.isPublishing = false;
+        }
+      },
+    });
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        this.isPublishing = false;
+        this.errorMessage = "Délai d'attente dépassé. Réessayez.";
+      }
+    }, 10000);
+  }
+
   cancel(): void {
     this.cancelled.emit();
+  }
+
+  openCloseSection(): void {
+    this.showCloseSection = true;
+  }
+
+  cancelCloseSection(): void {
+    this.showCloseSection = false;
+  }
+
+  closeOffer(notifyCustomers: boolean): void {
+    if (!this.offer?.uuid || this.isClosing) return;
+
+    this.isClosing = true;
+    this.errorMessage = null;
+    const offerUuid = this.offer.uuid;
+    let settled = false;
+
+    this.socketService.emit('closeOffer', {
+      uuid: offerUuid,
+      notifyCustomers,
+    });
+
+    this._closeSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
+      next: (serverOffer) => {
+        if (serverOffer.uuid === offerUuid && !settled) {
+          settled = true;
+          this.isClosing = false;
+          this.showCloseSection = false;
+          this.saved.emit(serverOffer);
+        }
+      },
+      error: (err) => {
+        console.error('Failed to close offer:', err);
+        if (!settled) {
+          settled = true;
+          this.errorMessage = "Échec de la fermeture de l'offre.";
+          this.isClosing = false;
+        }
+      },
+    });
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        this.isClosing = false;
+        this.errorMessage = "Délai d'attente dépassé. Réessayez.";
+      }
+    }, 10000);
   }
 
   private toDateString(epochMs: number): string {

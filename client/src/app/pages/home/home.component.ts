@@ -340,7 +340,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       ...offer,
       uuid: undefined as unknown as string,
       createdAt: undefined as unknown as number,
-      updatedAt: undefined,
+      publishMessage: offer.publishMessage,
       status: OfferStatus.DRAFT,
       products: offer.products.map((p) => ({
         ...p,

@@ -135,6 +135,23 @@ export class MongoService {
     return await this.customerCollection.findOne({ email });
   }
 
+  public static async getCustomerByResignationCode(resignationCode: string): Promise<Customer | null> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return null;
+    }
+    return await this.customerCollection.findOne({ resignationCode });
+  }
+
+  // customers subscribed to publish-offer notifications, with a verified email
+  public static async getSubscribedCustomers(): Promise<Array<Customer>> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return [];
+    }
+    return await this.customerCollection.find({ isSubscribed: true, emailVerified: true }).toArray();
+  }
+
   public static async upsertCustomer(customerData: Customer): Promise<void> {
     if (!this.mongoInit) {
       console.log('MongoDB not initialized');

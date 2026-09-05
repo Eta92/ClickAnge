@@ -1,6 +1,8 @@
 import { randomInt } from 'crypto';
 import { nanoid } from 'nanoid';
+import { Booking } from '../models/booking.model';
 import { Customer } from '../models/customer.model';
+import { Offer } from '../models/offer.model';
 import { EmailService } from './email.service';
 import { MongoService } from './mongo.service';
 
@@ -26,6 +28,8 @@ export class CustomerService {
       emailVerified: existing?.emailVerified || false,
       verificationCode: code,
       verificationExpires: Date.now() + CODE_TTL_MS,
+      isSubscribed: existing?.isSubscribed,
+      resignationCode: existing?.resignationCode || nanoid(16),
       createdAt: existing?.createdAt || Date.now(),
       lastBookingAt: existing?.lastBookingAt,
     };
@@ -72,5 +76,59 @@ export class CustomerService {
     await MongoService.confirmCustomerEmail(normalizedEmail);
 
     return customer;
+  }
+
+  // emails every subscribed, verified customer about a newly published offer
+  public static async notifySubscribers(offer: Offer): Promise<void> {
+    const subscribers = await MongoService.getSubscribedCustomers();
+    await Promise.allSettled(
+      subscribers.map(async (customer) => {
+        // older customers may not have a resignation code yet — assign one lazily
+        if (!customer.resignationCode) {
+          customer.resignationCode = nanoid(16);
+          await MongoService.upsertCustomer(customer);
+        }
+        return EmailService.sendOfferPublished({
+          to: customer.email,
+          offer,
+          customerName: customer.name,
+          resignationCode: customer.resignationCode,
+        });
+      })
+    );
+  }
+
+  // finds the customer matching the unsubscribe link's code and turns off their subscription
+  public static async unsubscribeByCode(resignationCode: string): Promise<Customer> {
+    const customer = await MongoService.getCustomerByResignationCode((resignationCode || '').trim());
+    if (!customer) {
+      throw new Error('Invalid unsubscribe link');
+    }
+
+    const updated: Customer = { ...customer, isSubscribed: false };
+    await MongoService.upsertCustomer(updated);
+    return updated;
+  }
+
+  // emails subscribed customers with a booking on the now-closed offer that their pickup is confirmed
+  public static async notifyBookingConfirmed(offer: Offer, bookings: Array<Booking>): Promise<void> {
+    const uniqueEmails = Array.from(new Set(bookings.map((b) => b.customerEmail)));
+    await Promise.allSettled(
+      uniqueEmails.map(async (email) => {
+        const customer = await MongoService.getCustomerByEmail(email);
+        if (!customer || !customer.isSubscribed) return;
+        // older customers may not have a resignation code yet — assign one lazily
+        if (!customer.resignationCode) {
+          customer.resignationCode = nanoid(16);
+          await MongoService.upsertCustomer(customer);
+        }
+        return EmailService.sendBookingConfirmed({
+          to: email,
+          offer,
+          customerName: customer.name,
+          resignationCode: customer.resignationCode,
+        });
+      })
+    );
   }
 }
