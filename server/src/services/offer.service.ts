@@ -22,6 +22,10 @@ export interface CreateOfferInput {
   pickupDate: number;
   pickupWindowStart: number;
   pickupWindowEnd: number;
+  // when true, the offer is created directly in OPEN status instead of DRAFT
+  publish?: boolean;
+  // only meaningful with publish: also email an auto-generated announcement to subscribers
+  notifySubscribers?: boolean;
 }
 
 export class OfferService {
@@ -81,13 +85,22 @@ export class OfferService {
       pickupDate: data.pickupDate,
       pickupWindowStart: data.pickupWindowStart,
       pickupWindowEnd: data.pickupWindowEnd,
-      status: OfferStatus.DRAFT,
+      status: data.publish ? OfferStatus.OPEN : OfferStatus.DRAFT,
       createdAt: Date.now(),
     };
+
+    if (data.publish) {
+      offer.publishedAt = Date.now();
+    }
 
     this.offerMap[offer.uuid] = offer;
     await MongoService.upsertOffer(offer);
     io?.emit('OfferUpdated', offer);
+
+    if (data.publish && data.notifySubscribers) {
+      await CustomerService.notifySubscribers(offer);
+    }
+
     return offer;
   }
 
@@ -150,18 +163,16 @@ export class OfferService {
     return offer;
   }
 
-  // switches a DRAFT offer to OPEN, storing the manager's publish message and optionally emailing subscribers
+  // switches a DRAFT offer to OPEN and optionally emails subscribers an auto-generated announcement
   public static async publishOffer(
     io: SocketServer,
     uuid: string,
-    publishMessage: string,
     notifySubscribers: boolean
   ): Promise<Offer | null> {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 
     offer.status = OfferStatus.OPEN;
-    offer.publishMessage = publishMessage;
     offer.publishedAt = Date.now();
     offer.updatedAt = Date.now();
     await MongoService.upsertOffer(offer);

@@ -235,9 +235,10 @@
         <button
           type="button"
           class="btn btn-gold"
+          [disabled]="isSubmitting || !offerForm.valid"
           (click)="openPublishSection()"
         >
-          Publier l'offre
+          Publier
         </button>
       }
       @if (canClose && !showCloseSection) {
@@ -249,21 +250,17 @@
 
     <!-- Publish section -->
     @if (showPublishSection) {
-      <div class="publish-section">
-        <label class="form-label form-label--full">
-          Message de publication
-          <textarea
-            name="publishMessage"
-            [(ngModel)]="publishMessageDraft"
-            placeholder="Message envoyé aux clients abonnés..."
-            rows="4"
-          ></textarea>
-        </label>
+      <div class="publish-section" #publishSection>
+        <p>
+          Un email récapitulatif de l'offre sera généré automatiquement à partir
+          des produits et du créneau de retrait.
+        </p>
 
         <div class="modal-footer">
           <button
             type="button"
             class="btn btn-secondary"
+            [disabled]="isPublishing"
             (click)="cancelPublishSection()"
           >
             Annuler
@@ -271,7 +268,7 @@
           <button
             type="button"
             class="btn btn-primary"
-            [disabled]="isPublishing"
+            [disabled]="isPublishing || !offerForm.valid"
             (click)="publish(false)"
           >
             Publier simplement
@@ -279,7 +276,7 @@
           <button
             type="button"
             class="btn btn-gold"
-            [disabled]="isPublishing"
+            [disabled]="isPublishing || !offerForm.valid"
             (click)="publish(true)"
           >
             Publier avec email
@@ -290,7 +287,7 @@
 
     <!-- Close section -->
     @if (showCloseSection) {
-      <div class="publish-section">
+      <div class="publish-section" #closeSection>
         <p>Fermer cette offre confirmera toutes les commandes en cours.</p>
         <div class="modal-footer">
           <button

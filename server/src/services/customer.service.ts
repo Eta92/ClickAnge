@@ -112,9 +112,15 @@ export class CustomerService {
 
   // emails subscribed customers with a booking on the now-closed offer that their pickup is confirmed
   public static async notifyBookingConfirmed(offer: Offer, bookings: Array<Booking>): Promise<void> {
-    const uniqueEmails = Array.from(new Set(bookings.map((b) => b.customerEmail)));
+    const bookingsByEmail = new Map<string, Array<Booking>>();
+    for (const booking of bookings) {
+      const list = bookingsByEmail.get(booking.customerEmail) ?? [];
+      list.push(booking);
+      bookingsByEmail.set(booking.customerEmail, list);
+    }
+
     await Promise.allSettled(
-      uniqueEmails.map(async (email) => {
+      Array.from(bookingsByEmail.entries()).map(async ([email, customerBookings]) => {
         const customer = await MongoService.getCustomerByEmail(email);
         if (!customer || !customer.isSubscribed) return;
         // older customers may not have a resignation code yet — assign one lazily
@@ -125,6 +131,7 @@ export class CustomerService {
         return EmailService.sendBookingConfirmed({
           to: email,
           offer,
+          bookings: customerBookings,
           customerName: customer.name,
           resignationCode: customer.resignationCode,
         });

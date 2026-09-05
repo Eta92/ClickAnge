@@ -1,5 +1,6 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   OnDestroy,
@@ -7,6 +8,7 @@ import {
   OnChanges,
   Output,
   SimpleChanges,
+  ViewChild,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import {
@@ -105,7 +107,6 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
 
   // publish section state — manager can no longer set status directly
   showPublishSection = false;
-  publishMessageDraft = '';
   isPublishing = false;
 
   // close section state
@@ -116,6 +117,12 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   private _updateSub?: Subscription;
   private _publishSub?: Subscription;
   private _closeSub?: Subscription;
+
+  @ViewChild('publishSection')
+  private publishSectionRef?: ElementRef<HTMLElement>;
+
+  @ViewChild('closeSection')
+  private closeSectionRef?: ElementRef<HTMLElement>;
 
   formValue: Partial<Offer> = {};
   isSubmitting = false;
@@ -153,12 +160,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     if (this.isSubmitting) {
       return 'Enregistrement...';
     }
-    return this.isEditing ? 'Mettre à jour' : "Créer l'offre";
+    return this.isEditing ? 'Mettre à jour' : 'Enregistrer comme brouillon';
   }
 
-  /** Publish button only makes sense for an already-created offer still in DRAFT */
+  /**
+   * Publish is available for a brand-new offer (created OPEN in one step) or for
+   * an already-created offer still in DRAFT.
+   */
   get canPublish(): boolean {
-    return this.isEditing && this.offer?.status === OfferStatus.DRAFT;
+    return !this.isEditing || this.offer?.status === OfferStatus.DRAFT;
   }
 
   /** Close button only makes sense for an already-created offer currently OPEN */
@@ -198,7 +208,6 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         pickupDate: now.getTime(),
         pickupWindowStart: new Date(today + 'T09:00').getTime(),
         pickupWindowEnd: new Date(today + 'T18:00').getTime(),
-        publishMessage: '',
       };
       this.selectedIcon = null;
       this.pickupDateLocal = today;
@@ -276,40 +285,52 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     return `${dateStr}T${timeStr}`;
   }
 
+  /** "Enregistrer comme brouillon" — creates a DRAFT offer (or updates an existing one). */
   submit(): void {
+    if (!this.validateForm()) return;
+
+    this.isSubmitting = true;
+    this.errorMessage = null;
+
+    if (this.isEditing) {
+      this.updateExisting();
+    } else {
+      this.createDraft();
+    }
+  }
+
+  /** Validates formValue in place, syncing datetime fields; sets errorMessage and returns false on failure. */
+  private validateForm(): boolean {
     if (!this.formValue.name) {
       this.errorMessage = 'Le nom est requis.';
-      return;
+      return false;
     }
 
     const products = this.formValue.products ?? [];
     if (products.length === 0) {
       this.errorMessage = 'Ajoutez au moins un produit.';
-      return;
+      return false;
     }
     for (const product of products) {
       if (!product.name) {
         this.errorMessage = 'Chaque produit doit avoir un nom.';
-        return;
+        return false;
       }
       if (typeof product.unitPrice !== 'number' || product.unitPrice <= 0) {
         this.errorMessage = `Un prix unitaire valide est requis pour ${product.name}.`;
-        return;
+        return false;
       }
       if (!product.totalQuantity || product.totalQuantity < 1) {
         this.errorMessage = `Une quantité valide est requise pour ${product.name}.`;
-        return;
+        return false;
       }
       if (!product.minimumOrder || product.minimumOrder < 1) {
         this.errorMessage = `Une commande minimum valide est requise pour ${product.name}.`;
-        return;
+        return false;
       }
-      if (
-        !product.maximumOrder ||
-        product.maximumOrder < product.minimumOrder
-      ) {
+      if (!product.maximumOrder || product.maximumOrder < product.minimumOrder) {
         this.errorMessage = `La commande maximum doit être supérieure ou égale au minimum pour ${product.name}.`;
-        return;
+        return false;
       }
     }
 
@@ -323,123 +344,139 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       !this.formValue.pickupWindowEnd
     ) {
       this.errorMessage = 'Les dates de retrait sont requises.';
-      return;
+      return false;
     }
 
-    this.isSubmitting = true;
-    this.errorMessage = null;
+    return true;
+  }
 
-    const isEdit = !!this.offer?.uuid;
+  /** Server payload for creating an offer (trimmed product shape). */
+  private buildOfferPayload() {
+    const products = this.formValue.products ?? [];
+    return {
+      name: this.formValue.name!,
+      description: this.formValue.description ?? '',
+      icon: this.selectedIcon ?? undefined,
+      products: products.map((p) => ({
+        name: p.name,
+        unitPrice: p.unitPrice,
+        unitType: p.unitType ?? ProductUnit.PIECE,
+        minimumOrder: p.minimumOrder ?? 1,
+        maximumOrder: p.maximumOrder ?? p.totalQuantity,
+        totalQuantity: p.totalQuantity,
+      })),
+      pickupDate: this.formValue.pickupDate!,
+      pickupWindowStart: this.formValue.pickupWindowStart!,
+      pickupWindowEnd: this.formValue.pickupWindowEnd!,
+    };
+  }
 
-    if (isEdit) {
-      // Update existing offer via socket
-      this.socketService.emit('updateOffer', {
-        uuid: this.offer!.uuid,
-        offerData: {
-          name: this.formValue.name!,
-          description: this.formValue.description ?? '',
-          icon: this.selectedIcon ?? undefined,
-          products,
-          pickupDate: this.formValue.pickupDate!,
-          pickupWindowStart: this.formValue.pickupWindowStart!,
-          pickupWindowEnd: this.formValue.pickupWindowEnd!,
-        },
-      });
+  private updateExisting(): void {
+    const uuid = this.offer!.uuid;
 
-      // Listen for server response with timeout fallback
-      const offerUuid = this.offer!.uuid;
-      let settled = false;
-
-      this._updateSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
-        next: (serverOffer) => {
-          if (serverOffer.uuid === offerUuid && !settled) {
-            settled = true;
-            this.isSubmitting = false;
-            this.saved.emit(serverOffer);
-          }
-        },
-        error: (err) => {
-          console.error('Failed to update offer:', err);
-          if (!settled) {
-            settled = true;
-            this.errorMessage = "Échec de la mise à jour de l'offre.";
-            this.isSubmitting = false;
-          }
-        },
-      });
-
-      // Timeout fallback: reset button after 10s if no response
-      setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          this.isSubmitting = false;
-          this.errorMessage = "Délai d'attente dépassé. Réessayez.";
-        }
-      }, 10000);
-    } else {
-      // Create new offer via socket
-      const payload = {
+    this.socketService.emit('updateOffer', {
+      uuid,
+      offerData: {
         name: this.formValue.name!,
         description: this.formValue.description ?? '',
         icon: this.selectedIcon ?? undefined,
-        products: products.map((p) => ({
-          name: p.name,
-          unitPrice: p.unitPrice,
-          unitType: p.unitType ?? ProductUnit.PIECE,
-          minimumOrder: p.minimumOrder ?? 1,
-          maximumOrder: p.maximumOrder ?? p.totalQuantity,
-          totalQuantity: p.totalQuantity,
-        })),
+        products: this.formValue.products ?? [],
         pickupDate: this.formValue.pickupDate!,
         pickupWindowStart: this.formValue.pickupWindowStart!,
         pickupWindowEnd: this.formValue.pickupWindowEnd!,
-      };
+      },
+    });
 
-      console.log('[OfferForm] Emitting createOffer:', payload);
-      this.socketService.emit('createOffer', payload);
+    let settled = false;
 
-      // Listen for server response
-      this._createSub = this.socketService.on<Offer>('OfferCreated').subscribe({
-        next: (serverOffer) => {
-          console.log('[OfferForm] Received OfferCreated:', serverOffer);
+    this._updateSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
+      next: (serverOffer) => {
+        if (serverOffer.uuid === uuid && !settled) {
+          settled = true;
           this.isSubmitting = false;
           this.saved.emit(serverOffer);
-        },
-        error: (err) => {
-          console.error('Failed to create offer:', err);
-          this.errorMessage = "Échec de la création de l'offre.";
+        }
+      },
+      error: (err) => {
+        console.error('Failed to update offer:', err);
+        if (!settled) {
+          settled = true;
+          this.errorMessage = "Échec de la mise à jour de l'offre.";
           this.isSubmitting = false;
-        },
-      });
-    }
+        }
+      },
+    });
+
+    // Timeout fallback: reset button after 10s if no response
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        this.isSubmitting = false;
+        this.errorMessage = "Délai d'attente dépassé. Réessayez.";
+      }
+    }, 10000);
+  }
+
+  private createDraft(): void {
+    const payload = this.buildOfferPayload();
+    console.log('[OfferForm] Emitting createOffer:', payload);
+    this.socketService.emit('createOffer', payload);
+
+    this._createSub = this.socketService.on<Offer>('OfferCreated').subscribe({
+      next: (serverOffer) => {
+        console.log('[OfferForm] Received OfferCreated:', serverOffer);
+        this.isSubmitting = false;
+        this.saved.emit(serverOffer);
+      },
+      error: (err) => {
+        console.error('Failed to create offer:', err);
+        this.errorMessage = "Échec de la création de l'offre.";
+        this.isSubmitting = false;
+      },
+    });
   }
 
   openPublishSection(): void {
-    this.publishMessageDraft = this.formValue.publishMessage ?? '';
+    // For a new offer, make sure the data is valid before offering to publish it.
+    if (!this.isEditing && !this.validateForm()) return;
+
     this.showPublishSection = true;
+    this.scrollIntoView(() => this.publishSectionRef);
   }
 
+  /** Scrolls a conditionally-rendered section into view once it has been rendered. */
+  private scrollIntoView(ref: () => ElementRef<HTMLElement> | undefined): void {
+    setTimeout(() => {
+      ref()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  /** "Annuler" inside the publish section — abandons publishing, keeps the offer. */
   cancelPublishSection(): void {
     this.showPublishSection = false;
   }
 
   publish(notifySubscribers: boolean): void {
-    if (!this.offer?.uuid || this.isPublishing) return;
+    if (this.isPublishing) return;
 
+    if (this.isEditing) {
+      this.publishExisting(this.offer!.uuid, notifySubscribers);
+    } else {
+      this.createAndPublish(notifySubscribers);
+    }
+  }
+
+  /** Publishes an already-created DRAFT offer. */
+  private publishExisting(uuid: string, notifySubscribers: boolean): void {
     this.isPublishing = true;
     this.errorMessage = null;
-    const offerUuid = this.offer.uuid;
     let settled = false;
 
-    this.socketService.emit('publishOffer', {
-      uuid: offerUuid,
-      publishMessage: this.publishMessageDraft,
-      notifySubscribers,
-    });
+    this.socketService.emit('publishOffer', { uuid, notifySubscribers });
 
     this._publishSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
       next: (serverOffer) => {
-        if (serverOffer.uuid === offerUuid && !settled) {
+        if (serverOffer.uuid === uuid && !settled) {
           settled = true;
           this.isPublishing = false;
           this.showPublishSection = false;
@@ -465,12 +502,54 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     }, 10000);
   }
 
+  /** Creates a brand-new offer directly in OPEN status, in a single round-trip. */
+  private createAndPublish(notifySubscribers: boolean): void {
+    if (!this.validateForm()) return;
+
+    this.isPublishing = true;
+    this.errorMessage = null;
+    let settled = false;
+
+    this.socketService.emit('createOffer', {
+      ...this.buildOfferPayload(),
+      publish: true,
+      notifySubscribers,
+    });
+
+    this._createSub = this.socketService.on<Offer>('OfferCreated').subscribe({
+      next: (serverOffer) => {
+        if (settled) return;
+        settled = true;
+        this.isPublishing = false;
+        this.showPublishSection = false;
+        this.saved.emit(serverOffer);
+      },
+      error: (err) => {
+        console.error('Failed to create and publish offer:', err);
+        if (!settled) {
+          settled = true;
+          this.errorMessage = "Échec de la publication de l'offre.";
+          this.isPublishing = false;
+        }
+      },
+    });
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        this.isPublishing = false;
+        this.errorMessage = "Délai d'attente dépassé. Réessayez.";
+      }
+    }, 10000);
+  }
+
   cancel(): void {
     this.cancelled.emit();
   }
 
   openCloseSection(): void {
     this.showCloseSection = true;
+    this.scrollIntoView(() => this.closeSectionRef);
   }
 
   cancelCloseSection(): void {

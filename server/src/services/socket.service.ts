@@ -77,9 +77,9 @@ export class SocketService {
         await OfferService.updateOfferStatus(this.io, data.uuid, data.status);
       });
 
-      socket.on('publishOffer', async (data: { uuid: string; publishMessage: string; notifySubscribers: boolean }) => {
+      socket.on('publishOffer', async (data: { uuid: string; notifySubscribers: boolean }) => {
         try {
-          await OfferService.publishOffer(this.io, data.uuid, data.publishMessage, data.notifySubscribers);
+          await OfferService.publishOffer(this.io, data.uuid, data.notifySubscribers);
         } catch (err: any) {
           socket.emit('ToasterError', err.message);
         }
