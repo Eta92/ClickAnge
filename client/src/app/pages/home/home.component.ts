@@ -5,7 +5,7 @@ import {
   AfterViewInit,
   ChangeDetectorRef,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { CustomerProfile } from '../../core/models/customer-profile.model';
 import {
@@ -50,6 +50,8 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   bookingFormBooking: Booking | null = null;
   bookingFormReadonly = false;
   private _pendingOfferForAuth: Offer | null = null;
+  // guards the email deep link (?offer=<uuid>) so it only opens once per visit
+  private _deepLinkHandled = false;
 
   // embedded offer-form state (manager only)
   showOfferForm = false;
@@ -64,6 +66,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private loginService: LoginService,
     private router: Router,
+    private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
     private bookingService: BookingService,
     private toastr: ToastrService,
@@ -137,6 +140,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       next: (offers) => {
         this.offers = offers;
         this.cdr.detectChanges();
+        this.maybeOpenOfferFromEmailLink();
       },
       error: (err) => {
         console.error('Failed to load offers:', err);
@@ -293,6 +297,30 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   viewOffer(offer: Offer): void {
     this.router.navigate(['/overview', offer.uuid]);
+  }
+
+  /**
+   * Notification emails link here as `/home?offer=<uuid>`. Once the offer list
+   * has loaded, open that offer through the normal selection flow (which handles
+   * login, existing bookings and the manager case). Unknown or already-closed
+   * offers just leave the customer on the list with a short notice.
+   */
+  private maybeOpenOfferFromEmailLink(): void {
+    if (this._deepLinkHandled) return;
+    const offerUuid = this.route.snapshot.queryParamMap.get('offer');
+    if (!offerUuid) return;
+    this._deepLinkHandled = true;
+
+    const offer = this.offers.find((o) => o.uuid === offerUuid);
+    if (offer) {
+      this.onSelectOffer(offer);
+    } else {
+      this.toastr.info("Cette offre n'est plus disponible.", 'Offre introuvable');
+    }
+    // We're inside the offers subscription (fires outside Angular's zone, like
+    // the other socket callbacks here), so the modal state change above needs an
+    // explicit CD pass to reach the view.
+    this.cdr.detectChanges();
   }
 
   onSelectOffer(offer: Offer): void {
