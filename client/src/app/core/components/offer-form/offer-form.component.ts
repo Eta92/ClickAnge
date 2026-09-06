@@ -12,6 +12,8 @@ import {
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import {
+  GlobalQuantities,
+  GlobalQuantityField,
   Offer,
   OfferStatus,
   Product,
@@ -86,6 +88,22 @@ const ICON_LIST = [
 
 export type OfferIcon = (typeof ICON_LIST)[number];
 
+export interface GlobalFieldGroup {
+  id: string;
+  label: string;
+  fields: readonly GlobalQuantityField[];
+}
+
+// Groups of quantity fields the manager can switch from per-product to a single
+// shared input, in the order they appear in the form. Min / max move together.
+const GLOBAL_FIELD_GROUPS: readonly GlobalFieldGroup[] = [
+  { id: 'unitType', label: "Type d'unité", fields: ['unitType'] },
+  { id: 'unitPrice', label: 'Prix unitaire', fields: ['unitPrice'] },
+  { id: 'totalQuantity', label: 'Quantité disponible', fields: ['totalQuantity'] },
+  { id: 'remainingQuantity', label: 'Quantité restante', fields: ['remainingQuantity'] },
+  { id: 'order', label: 'Commande min / max', fields: ['minimumOrder', 'maximumOrder'] },
+];
+
 @Component({
   standalone: false,
   selector: 'app-offer-form',
@@ -101,9 +119,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   protected readonly OfferStatus = OfferStatus;
   protected readonly ProductUnit = ProductUnit;
   protected readonly ICON_LIST = ICON_LIST;
+  protected readonly GLOBAL_FIELD_GROUPS = GLOBAL_FIELD_GROUPS;
 
   selectedIcon: OfferIcon | null = null;
   showIconPicker = false;
+
+  // "Configurer les champs communs des produits" — collapsed by default.
+  // Which fields are shared is read straight from `formValue.globalQuantities`:
+  // a key is present exactly when that field is common.
+  showGlobalFields = false;
 
   // publish section state — manager can no longer set status directly
   showPublishSection = false;
@@ -187,7 +211,9 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       this.formValue = {
         ...this.offer,
         products: this.offer.products.map((p) => ({ ...p })),
+        globalQuantities: { ...(this.offer.globalQuantities ?? {}) },
       };
+      this.showGlobalFields = this.hasGlobalFields;
       this.selectedIcon = (this.offer.icon as OfferIcon | undefined) ?? null;
       // Convert epoch ms to date string
       this.pickupDateLocal = this.toDateString(this.offer.pickupDate);
@@ -204,11 +230,13 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         name: '',
         description: '',
         icon: undefined,
+        globalQuantities: {},
         products: [this.createEmptyProduct()],
         pickupDate: now.getTime(),
         pickupWindowStart: new Date(today + 'T09:00').getTime(),
         pickupWindowEnd: new Date(today + 'T18:00').getTime(),
       };
+      this.showGlobalFields = false;
       this.selectedIcon = null;
       this.pickupDateLocal = today;
       this.windowStartLocal = morning;
@@ -239,6 +267,102 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     const products = this.formValue.products ?? [];
     if (products.length <= 1) return;
     this.formValue.products = products.filter((_, i) => i !== index);
+  }
+
+  // ---- global (shared) quantity fields ----
+
+  /** True when this quantity field is filled once for the whole offer. */
+  isGlobalField(key: GlobalQuantityField): boolean {
+    const globals = this.formValue.globalQuantities;
+    return !!globals && key in globals;
+  }
+
+  /** True when every field of the checkbox group is currently shared. */
+  isGroupGlobal(group: GlobalFieldGroup): boolean {
+    return group.fields.every((f) => this.isGlobalField(f));
+  }
+
+  /** At least one quantity field is currently shared across all products. */
+  get hasGlobalFields(): boolean {
+    return GLOBAL_FIELD_GROUPS.some((g) => this.isGroupGlobal(g));
+  }
+
+  /** At least one quantity field is still filled per product (drives the row). */
+  get hasPerProductQuantityFields(): boolean {
+    return (
+      !this.isGlobalField('unitPrice') ||
+      !this.isGlobalField('totalQuantity') ||
+      !this.isGlobalField('minimumOrder') ||
+      !this.isGlobalField('maximumOrder')
+    );
+  }
+
+  /**
+   * Switches a checkbox group between per-product and shared. When turning it
+   * shared, each field is seeded from the first product so nothing is lost; when
+   * turning it back, the shared values are dropped.
+   */
+  toggleGlobalGroup(group: GlobalFieldGroup): void {
+    const globals: GlobalQuantities = {
+      ...(this.formValue.globalQuantities ?? {}),
+    };
+    const turningOff = this.isGroupGlobal(group);
+    for (const key of group.fields) {
+      if (turningOff) {
+        delete globals[key];
+      } else if (!(key in globals)) {
+        this.seedGlobalField(globals, key);
+      }
+    }
+    this.syncSharedLimitFlags(globals);
+    this.formValue.globalQuantities = globals;
+  }
+
+  /**
+   * `isMaximumShared` / `isRemainingShared` turn the shared value into one
+   * offer-wide limit (see the model helpers). Default them on when the field
+   * becomes shared — the manager can still untick the checkbox — and drop them
+   * when it stops being shared.
+   */
+  private syncSharedLimitFlags(globals: GlobalQuantities): void {
+    if ('maximumOrder' in globals) globals.isMaximumShared ??= true;
+    else delete globals.isMaximumShared;
+    if ('remainingQuantity' in globals) globals.isRemainingShared ??= true;
+    else delete globals.isRemainingShared;
+  }
+
+  /** Copies one field's starting value from the first product into `globals`. */
+  private seedGlobalField(
+    globals: GlobalQuantities,
+    key: GlobalQuantityField,
+  ): void {
+    const first = this.formValue.products?.[0];
+    switch (key) {
+      case 'unitType':
+        globals.unitType = first?.unitType ?? ProductUnit.PIECE;
+        break;
+      case 'unitPrice':
+        globals.unitPrice = first?.unitPrice;
+        break;
+      case 'totalQuantity':
+        globals.totalQuantity = first?.totalQuantity ?? 1;
+        break;
+      case 'minimumOrder':
+        globals.minimumOrder = first?.minimumOrder ?? 1;
+        break;
+      case 'maximumOrder':
+        globals.maximumOrder = first?.maximumOrder ?? 1;
+        break;
+      case 'remainingQuantity':
+        globals.remainingQuantity =
+          first?.remainingQuantity ?? first?.totalQuantity ?? 1;
+        break;
+    }
+  }
+
+  /** A product with every shared field layered on top of its own values. */
+  private resolveProduct(product: Product): Product {
+    return { ...product, ...this.formValue.globalQuantities };
   }
 
   onPickupDateChange(): void {
@@ -316,20 +440,29 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         this.errorMessage = 'Chaque produit doit avoir un nom.';
         return false;
       }
-      if (typeof product.unitPrice !== 'number' || product.unitPrice <= 0) {
-        this.errorMessage = `Un prix unitaire valide est requis pour ${product.name}.`;
+      // Validate against the resolved product so shared fields are checked once
+      // via their single input rather than per (now hidden) product field.
+      const resolved = this.resolveProduct(product);
+      const scope = (field: GlobalQuantityField) =>
+        this.isGlobalField(field) ? 'commun' : product.name;
+
+      if (typeof resolved.unitPrice !== 'number' || resolved.unitPrice <= 0) {
+        this.errorMessage = `Un prix unitaire valide est requis (${scope('unitPrice')}).`;
         return false;
       }
-      if (!product.totalQuantity || product.totalQuantity < 1) {
-        this.errorMessage = `Une quantité valide est requise pour ${product.name}.`;
+      if (!resolved.totalQuantity || resolved.totalQuantity < 1) {
+        this.errorMessage = `Une quantité valide est requise (${scope('totalQuantity')}).`;
         return false;
       }
-      if (!product.minimumOrder || product.minimumOrder < 1) {
-        this.errorMessage = `Une commande minimum valide est requise pour ${product.name}.`;
+      if (!resolved.minimumOrder || resolved.minimumOrder < 1) {
+        this.errorMessage = `Une commande minimum valide est requise (${scope('minimumOrder')}).`;
         return false;
       }
-      if (!product.maximumOrder || product.maximumOrder < product.minimumOrder) {
-        this.errorMessage = `La commande maximum doit être supérieure ou égale au minimum pour ${product.name}.`;
+      if (
+        !resolved.maximumOrder ||
+        resolved.maximumOrder < resolved.minimumOrder
+      ) {
+        this.errorMessage = `La commande maximum doit être supérieure ou égale au minimum (${scope('maximumOrder')}).`;
         return false;
       }
     }
@@ -353,22 +486,34 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   /** Server payload for creating an offer (trimmed product shape). */
   private buildOfferPayload() {
     const products = this.formValue.products ?? [];
+    const globalQuantities = this.normalizedGlobalQuantities();
     return {
       name: this.formValue.name!,
       description: this.formValue.description ?? '',
       icon: this.selectedIcon ?? undefined,
-      products: products.map((p) => ({
-        name: p.name,
-        unitPrice: p.unitPrice,
-        unitType: p.unitType ?? ProductUnit.PIECE,
-        minimumOrder: p.minimumOrder ?? 1,
-        maximumOrder: p.maximumOrder ?? p.totalQuantity,
-        totalQuantity: p.totalQuantity,
-      })),
+      // Shared fields are sent both on their own and folded into every product,
+      // so product-level consumers keep working without special-casing.
+      globalQuantities,
+      products: products.map((p) => {
+        const r = this.resolveProduct(p);
+        return {
+          name: r.name,
+          unitPrice: r.unitPrice,
+          unitType: r.unitType ?? ProductUnit.PIECE,
+          minimumOrder: r.minimumOrder ?? 1,
+          maximumOrder: r.maximumOrder ?? r.totalQuantity,
+          totalQuantity: r.totalQuantity,
+        };
+      }),
       pickupDate: this.formValue.pickupDate!,
       pickupWindowStart: this.formValue.pickupWindowStart!,
       pickupWindowEnd: this.formValue.pickupWindowEnd!,
     };
+  }
+
+  /** The shared fields, or undefined when the manager toggled none. */
+  private normalizedGlobalQuantities(): GlobalQuantities | undefined {
+    return this.hasGlobalFields ? this.formValue.globalQuantities : undefined;
   }
 
   private updateExisting(): void {
@@ -380,7 +525,19 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         name: this.formValue.name!,
         description: this.formValue.description ?? '',
         icon: this.selectedIcon ?? undefined,
-        products: this.formValue.products ?? [],
+        globalQuantities: this.normalizedGlobalQuantities(),
+        products: (this.formValue.products ?? []).map((p) => {
+          const r = this.resolveProduct(p);
+          return {
+            name: r.name,
+            unitPrice: r.unitPrice,
+            unitType: r.unitType,
+            minimumOrder: r.minimumOrder,
+            maximumOrder: r.maximumOrder,
+            totalQuantity: r.totalQuantity,
+            remainingQuantity: r.remainingQuantity,
+          };
+        }),
         pickupDate: this.formValue.pickupDate!,
         pickupWindowStart: this.formValue.pickupWindowStart!,
         pickupWindowEnd: this.formValue.pickupWindowEnd!,

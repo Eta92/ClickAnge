@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { Booking, BookingStatus, Purchase } from '../models/booking.model';
-import { Offer, OfferStatus } from '../models/offer.model';
+import { Offer, OfferStatus, isMaximumOrderShared, isRemainingQuantityShared } from '../models/offer.model';
 import { MongoService } from './mongo.service';
 import { OfferService } from './offer.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -34,38 +34,68 @@ export class BookingService {
 
   // ---- purchase helpers ----
 
+  private static totalUnits(purchases: Array<Purchase>): number {
+    return purchases.reduce((sum, p) => sum + p.quantity, 0);
+  }
+
   /** Ensures every requested purchase maps to a valid, available product line on the offer */
   private static validatePurchases(offer: Offer, purchases: Array<Purchase>): void {
     if (!purchases || purchases.length === 0) {
       throw new Error('No products selected');
     }
+
+    const sharedMax = isMaximumOrderShared(offer) ? offer.globalQuantities!.maximumOrder! : undefined;
+    const sharedRemaining = isRemainingQuantityShared(offer) ? offer.globalQuantities!.remainingQuantity! : undefined;
+
     for (const purchase of purchases) {
       const product = offer.products.find((p) => p.name === purchase.name);
       if (!product) {
         throw new Error(`Product not found: ${purchase.name}`);
       }
-      if (
-        !purchase.quantity ||
-        purchase.quantity < product.minimumOrder ||
-        purchase.quantity > product.maximumOrder ||
-        purchase.quantity > product.remainingQuantity
-      ) {
+      // The max / remaining checks move to the offer level when they are shared.
+      const overMax = sharedMax === undefined && purchase.quantity > product.maximumOrder;
+      const overRemaining = sharedRemaining === undefined && purchase.quantity > product.remainingQuantity;
+      if (!purchase.quantity || purchase.quantity < product.minimumOrder || overMax || overRemaining) {
         throw new Error(`Invalid quantity for ${purchase.name}`);
       }
     }
+
+    const total = this.totalUnits(purchases);
+    if (sharedMax !== undefined && total > sharedMax) {
+      throw new Error(`Total quantity ${total} exceeds the shared maximum of ${sharedMax}`);
+    }
+    if (sharedRemaining !== undefined && total > sharedRemaining) {
+      throw new Error(`Total quantity ${total} exceeds the shared remaining stock of ${sharedRemaining}`);
+    }
   }
 
-  /** Applies (consume=1) or reverses (restore=-1) purchases against offer product availability */
+  /** Applies (consume=1) or reverses (restore=-1) purchases against offer availability */
   private static applyPurchases(offer: Offer, purchases: Array<Purchase>, sign: 1 | -1): void {
-    for (const purchase of purchases) {
-      const product = offer.products.find((p) => p.name === purchase.name);
-      if (!product) continue;
-      product.remainingQuantity = Math.max(0, product.remainingQuantity - sign * purchase.quantity);
+    if (isRemainingQuantityShared(offer)) {
+      // Single pool: draw the whole booking down from it, then mirror onto every
+      // product so displays and other consumers stay coherent.
+      const pool = offer.globalQuantities!;
+      pool.remainingQuantity = Math.max(0, (pool.remainingQuantity ?? 0) - sign * this.totalUnits(purchases));
+      for (const product of offer.products) {
+        product.remainingQuantity = pool.remainingQuantity;
+      }
+    } else {
+      for (const purchase of purchases) {
+        const product = offer.products.find((p) => p.name === purchase.name);
+        if (!product) continue;
+        product.remainingQuantity = Math.max(0, product.remainingQuantity - sign * purchase.quantity);
+      }
     }
+
     offer.updatedAt = Date.now();
-    if (offer.products.every((p) => p.remainingQuantity <= 0)) {
+
+    const soldOut = isRemainingQuantityShared(offer)
+      ? (offer.globalQuantities!.remainingQuantity ?? 0) <= 0
+      : offer.products.every((p) => p.remainingQuantity <= 0);
+
+    if (soldOut) {
       offer.status = OfferStatus.CLOSED;
-    } else if (offer.status === OfferStatus.CLOSED && offer.products.some((p) => p.remainingQuantity > 0)) {
+    } else if (offer.status === OfferStatus.CLOSED) {
       offer.status = OfferStatus.OPEN;
     }
   }

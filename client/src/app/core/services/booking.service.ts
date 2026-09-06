@@ -84,16 +84,24 @@ export class BookingService {
     return null;
   }
 
-  /** Validate a single product quantity against its min/max/remaining constraints */
-  validateProductQuantity(product: Product, quantity: number): string | null {
+  /**
+   * Validate a single product quantity against its min/max/remaining constraints.
+   * `skipMax` / `skipRemaining` opt out of the per-product checks when the offer
+   * caps those across all products instead (see the shared-limit helpers).
+   */
+  validateProductQuantity(
+    product: Product,
+    quantity: number,
+    opts: { skipMax?: boolean; skipRemaining?: boolean } = {},
+  ): string | null {
     if (quantity <= 0) return null; // 0 means "not selected"
     if (quantity < product.minimumOrder) {
       return `${product.name} : quantité minimum ${product.minimumOrder}.`;
     }
-    if (quantity > product.maximumOrder) {
+    if (!opts.skipMax && quantity > product.maximumOrder) {
       return `${product.name} : quantité maximum ${product.maximumOrder}.`;
     }
-    if (quantity > product.remainingQuantity) {
+    if (!opts.skipRemaining && quantity > product.remainingQuantity) {
       return `${product.name} : seulement ${product.remainingQuantity} disponible(s).`;
     }
     return null;

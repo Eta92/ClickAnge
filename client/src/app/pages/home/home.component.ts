@@ -8,7 +8,13 @@ import {
 import { Router } from '@angular/router';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { CustomerProfile } from '../../core/models/customer-profile.model';
-import { Offer, OfferStatus, ProductUnit } from '../../core/models/offer.model';
+import {
+  Offer,
+  OfferStatus,
+  ProductUnit,
+  isRemainingQuantityShared,
+  sharedRemainingQuantity,
+} from '../../core/models/offer.model';
 import { LoginService } from '../../core/auth/login.service';
 import { BookingService } from '../../core/services/booking.service';
 import { ToastrService } from 'ngx-toastr';
@@ -221,6 +227,16 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       'Terminée', // COMPLETED (3)
     ];
     return labels[status] ?? 'Inconnu';
+  }
+
+  /** Offer uses one shared stock pool across its products (see model helper). */
+  hasSharedStock(offer: Offer): boolean {
+    return isRemainingQuantityShared(offer);
+  }
+
+  /** Size of that shared pool. */
+  sharedStock(offer: Offer): number {
+    return sharedRemainingQuantity(offer);
   }
 
   /** Convert ProductUnit enum value to display label */

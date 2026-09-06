@@ -77,6 +77,143 @@
       </div>
     </div>
 
+    <!-- Common product fields (shared input) -->
+    <div class="form-label form-label--full">
+      <button
+        type="button"
+        class="global-fields-toggle"
+        (click)="showGlobalFields = !showGlobalFields"
+        [attr.aria-expanded]="showGlobalFields"
+      >
+        <span>Configurer les champs communs des produits</span>
+        <span class="global-fields-caret" aria-hidden="true">
+          {{ showGlobalFields ? '▲' : '▼' }}
+        </span>
+      </button>
+
+      @if (showGlobalFields) {
+        <p class="global-fields-hint">
+          Cochez les champs identiques pour tous les produits : ils sont retirés
+          de chaque produit et se saisissent une seule fois ci-dessous.
+        </p>
+
+        <div class="global-fields-options">
+          @for (group of GLOBAL_FIELD_GROUPS; track group.id) {
+            <label class="global-field-check">
+              <input
+                type="checkbox"
+                [checked]="isGroupGlobal(group)"
+                (change)="toggleGlobalGroup(group)"
+              />
+              <span>{{ group.label }}</span>
+            </label>
+          }
+        </div>
+      }
+
+      @if (hasGlobalFields) {
+        <div class="global-fields-inputs">
+          @if (isGlobalField('unitType')) {
+            <label class="form-label">
+              Type d'unité (commun)
+              <select
+                name="globalUnitType"
+                [(ngModel)]="formValue.globalQuantities!.unitType"
+                required
+              >
+                <option [ngValue]="ProductUnit.PIECE">Pièce</option>
+                <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
+                <option [ngValue]="ProductUnit.LITER">Litre</option>
+                <option [ngValue]="ProductUnit.OTHER">Autre</option>
+              </select>
+            </label>
+          }
+          @if (isGlobalField('unitPrice')) {
+            <label class="form-label">
+              Prix unitaire commun (€)
+              <input
+                type="number"
+                name="globalUnitPrice"
+                [(ngModel)]="formValue.globalQuantities!.unitPrice"
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </label>
+          }
+          @if (isGlobalField('totalQuantity')) {
+            <label class="form-label">
+              Quantité disponible commune
+              <input
+                type="number"
+                name="globalTotalQuantity"
+                [(ngModel)]="formValue.globalQuantities!.totalQuantity"
+                min="1"
+                required
+              />
+            </label>
+          }
+          @if (isGlobalField('remainingQuantity')) {
+            <label class="form-label form-label--full">
+              Quantité restante commune
+              <input
+                type="number"
+                name="globalRemainingQuantity"
+                [(ngModel)]="formValue.globalQuantities!.remainingQuantity"
+                min="0"
+                required
+              />
+            </label>
+            <label class="global-field-check global-field-check--behavior">
+              <input
+                type="checkbox"
+                name="isRemainingShared"
+                [(ngModel)]="formValue.globalQuantities!.isRemainingShared"
+              />
+              <span>
+                Stock partagé : une seule réserve pour tous les produits (chaque
+                réservation la fait baisser, l'offre ferme à 0).
+              </span>
+            </label>
+          }
+          @if (isGlobalField('minimumOrder')) {
+            <label class="form-label form-label--full">
+              Commande min / max (commune)
+              <div class="min-max-row">
+                <input
+                  type="number"
+                  name="globalMinimumOrder"
+                  [(ngModel)]="formValue.globalQuantities!.minimumOrder"
+                  min="1"
+                  step="1"
+                  required
+                />
+                <input
+                  type="number"
+                  name="globalMaximumOrder"
+                  [(ngModel)]="formValue.globalQuantities!.maximumOrder"
+                  min="1"
+                  step="1"
+                  required
+                />
+              </div>
+            </label>
+            <label class="global-field-check global-field-check--behavior">
+              <input
+                type="checkbox"
+                name="isMaximumShared"
+                [(ngModel)]="formValue.globalQuantities!.isMaximumShared"
+              />
+              <span>
+                Maximum partagé : le total d'une réservation (tous produits
+                confondus) ne peut pas dépasser ce maximum.
+              </span>
+            </label>
+          }
+        </div>
+      }
+    </div>
+
     <!-- Products list -->
     <div class="form-label form-label--full">
       <span style="margin-bottom: 0.5rem; display: block">Produits</span>
@@ -96,7 +233,11 @@
             }
 
             <div class="form-row">
-              <label class="form-label form-label--twothird">
+              <label
+                class="form-label"
+                [class.form-label--twothird]="!isGlobalField('unitType')"
+                [class.form-label--full]="isGlobalField('unitType')"
+              >
                 Nom du produit {{ $index + 1 }}
                 <input
                   type="text"
@@ -107,67 +248,77 @@
                 />
               </label>
 
-              <label class="form-label form-label--third">
-                Type d'unité
-                <select
-                  name="productUnitType{{ $index }}"
-                  [(ngModel)]="product.unitType"
-                  required
-                >
-                  <option [ngValue]="ProductUnit.PIECE">Pièce</option>
-                  <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
-                  <option [ngValue]="ProductUnit.LITER">Litre</option>
-                  <option [ngValue]="ProductUnit.OTHER">Autre</option>
-                </select>
-              </label>
+              @if (!isGlobalField('unitType')) {
+                <label class="form-label form-label--third">
+                  Type d'unité
+                  <select
+                    name="productUnitType{{ $index }}"
+                    [(ngModel)]="product.unitType"
+                    required
+                  >
+                    <option [ngValue]="ProductUnit.PIECE">Pièce</option>
+                    <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
+                    <option [ngValue]="ProductUnit.LITER">Litre</option>
+                    <option [ngValue]="ProductUnit.OTHER">Autre</option>
+                  </select>
+                </label>
+              }
             </div>
 
-            <div class="form-row form-row--triple">
-              <label class="form-label form-label--smallthird">
-                Prix unitaire (€)
-                <input
-                  type="number"
-                  name="productUnitPrice{{ $index }}"
-                  [(ngModel)]="product.unitPrice"
-                  min="0.01"
-                  step="0.01"
-                  required
-                />
-              </label>
+            @if (hasPerProductQuantityFields) {
+              <div class="form-row form-row--triple">
+                @if (!isGlobalField('unitPrice')) {
+                  <label class="form-label form-label--smallthird">
+                    Prix unitaire (€)
+                    <input
+                      type="number"
+                      name="productUnitPrice{{ $index }}"
+                      [(ngModel)]="product.unitPrice"
+                      min="0.01"
+                      step="0.01"
+                      required
+                    />
+                  </label>
+                }
 
-              <label class="form-label form-label--third">
-                Quantité disponible
-                <input
-                  type="number"
-                  name="productTotalQuantity{{ $index }}"
-                  [(ngModel)]="product.totalQuantity"
-                  min="1"
-                  required
-                />
-              </label>
+                @if (!isGlobalField('totalQuantity')) {
+                  <label class="form-label form-label--third">
+                    Quantité disponible
+                    <input
+                      type="number"
+                      name="productTotalQuantity{{ $index }}"
+                      [(ngModel)]="product.totalQuantity"
+                      min="1"
+                      required
+                    />
+                  </label>
+                }
 
-              <label class="form-label form-label--third">
-                Commande Min / Max
-                <div class="min-max-row">
-                  <input
-                    type="number"
-                    name="productMinimumOrder{{ $index }}"
-                    [(ngModel)]="product.minimumOrder"
-                    min="1"
-                    step="1"
-                    required
-                  />
-                  <input
-                    type="number"
-                    name="productMaximumOrder{{ $index }}"
-                    [(ngModel)]="product.maximumOrder"
-                    min="1"
-                    step="1"
-                    required
-                  />
-                </div>
-              </label>
-            </div>
+                @if (!isGlobalField('minimumOrder')) {
+                  <label class="form-label form-label--third">
+                    Commande Min / Max
+                    <div class="min-max-row">
+                      <input
+                        type="number"
+                        name="productMinimumOrder{{ $index }}"
+                        [(ngModel)]="product.minimumOrder"
+                        min="1"
+                        step="1"
+                        required
+                      />
+                      <input
+                        type="number"
+                        name="productMaximumOrder{{ $index }}"
+                        [(ngModel)]="product.maximumOrder"
+                        min="1"
+                        step="1"
+                        required
+                      />
+                    </div>
+                  </label>
+                }
+              </div>
+            }
           </div>
         }
       </div>

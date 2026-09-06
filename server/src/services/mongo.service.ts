@@ -57,7 +57,17 @@ export class MongoService {
       return;
     }
     try {
-      await this.offerCollection.updateOne({ uuid: offerData.uuid }, { $set: offerData }, { upsert: true });
+      // Split explicit `undefined` fields into $unset so clearing an optional
+      // field (e.g. globalQuantities) also removes it from the stored document.
+      const $set: Record<string, unknown> = {};
+      const $unset: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(offerData)) {
+        if (value === undefined) $unset[key] = '';
+        else $set[key] = value;
+      }
+      const update: Record<string, unknown> = { $set };
+      if (Object.keys($unset).length > 0) update.$unset = $unset;
+      await this.offerCollection.updateOne({ uuid: offerData.uuid }, update, { upsert: true });
     } catch (err) {
       console.log('Error upserting offer:', err);
     }

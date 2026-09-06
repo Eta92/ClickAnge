@@ -35,6 +35,21 @@
         </div>
       </div>
 
+      <!-- Shared-limit notice -->
+      @if (isRemainingShared || isMaximumShared) {
+        <p class="shared-limits-note">
+          @if (isRemainingShared) {
+            <span
+              >Stock partagé : {{ sharedStockCeiling }} article(s) au total pour
+              cette offre.</span
+            >
+          }
+          @if (isMaximumShared) {
+            <span>Maximum {{ sharedMaximum }} article(s) par réservation.</span>
+          }
+        </p>
+      }
+
       <!-- Products list -->
       <div class="products-selection">
         @for (product of offer.products; track product.name) {
@@ -42,9 +57,13 @@
             <div class="product-select-info">
               <span class="product-select-name">{{ product.name }}</span>
               <span class="product-select-meta">
-                {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }} ·
-                {{ product.remainingQuantity }} disponible(s) ·
-                ({{ product.maximumOrder }} max)
+                {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }}
+                @if (!isRemainingShared) {
+                  · {{ product.remainingQuantity }} disponible(s)
+                }
+                @if (!isMaximumShared) {
+                  · ({{ product.maximumOrder }} max)
+                }
               </span>
             </div>
             <input

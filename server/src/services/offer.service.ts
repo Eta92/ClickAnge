@@ -1,6 +1,14 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
-import { Offer, OfferStatus, Product, ProductUnit } from '../models/offer.model';
+import {
+  GlobalQuantities,
+  Offer,
+  OfferStatus,
+  Product,
+  ProductQuantity,
+  ProductUnit,
+  isRemainingQuantityShared,
+} from '../models/offer.model';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -12,12 +20,16 @@ export interface CreateOfferProductInput {
   minimumOrder: number;
   maximumOrder: number;
   totalQuantity: number;
+  remainingQuantity?: number;
 }
 
 export interface CreateOfferInput {
   name: string;
   description?: string;
   icon?: string;
+  // quantity fields the manager filled once for the whole offer; also mirrored
+  // onto every product below by the client, and defensively here
+  globalQuantities?: GlobalQuantities;
   products: CreateOfferProductInput[];
   pickupDate: number;
   pickupWindowStart: number;
@@ -26,6 +38,27 @@ export interface CreateOfferInput {
   publish?: boolean;
   // only meaningful with publish: also email an auto-generated announcement to subscribers
   notifySubscribers?: boolean;
+}
+
+/** Keeps only the recognised, defined global-quantity keys; undefined if none. */
+function normalizeGlobalQuantities(globals?: GlobalQuantities | null): GlobalQuantities | undefined {
+  if (!globals) return undefined;
+  const out: GlobalQuantities = {};
+  if (globals.unitType != null) out.unitType = globals.unitType;
+  if (globals.unitPrice != null) out.unitPrice = globals.unitPrice;
+  if (globals.totalQuantity != null) out.totalQuantity = globals.totalQuantity;
+  if (globals.remainingQuantity != null) out.remainingQuantity = globals.remainingQuantity;
+  if (globals.minimumOrder != null) out.minimumOrder = globals.minimumOrder;
+  if (globals.maximumOrder != null) out.maximumOrder = globals.maximumOrder;
+  if (globals.isMaximumShared != null) out.isMaximumShared = globals.isMaximumShared;
+  if (globals.isRemainingShared != null) out.isRemainingShared = globals.isRemainingShared;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Overlays the shared quantity values onto a product-shaped object. */
+function withGlobalQuantities<T extends Partial<ProductQuantity>>(product: T, globals?: GlobalQuantities): T {
+  // The overlaid keys are a subset of ProductQuantity, so the shape is unchanged.
+  return globals ? ({ ...product, ...globals } as T) : product;
 }
 
 export class OfferService {
@@ -66,21 +99,27 @@ export class OfferService {
   // ---- mutations ----
 
   public static async createOffer(io: SocketServer, data: CreateOfferInput): Promise<Offer> {
-    const products: Product[] = (data.products ?? []).map((p) => ({
-      name: p.name,
-      unitPrice: p.unitPrice,
-      unitType: p.unitType ?? ProductUnit.PIECE,
-      minimumOrder: p.minimumOrder ?? 1,
-      maximumOrder: p.maximumOrder ?? p.totalQuantity,
-      totalQuantity: p.totalQuantity,
-      remainingQuantity: p.totalQuantity,
-    }));
+    const globalQuantities = normalizeGlobalQuantities(data.globalQuantities);
+
+    const products: Product[] = (data.products ?? []).map((raw) => {
+      const p = withGlobalQuantities(raw, globalQuantities);
+      return {
+        name: p.name,
+        unitPrice: p.unitPrice,
+        unitType: p.unitType ?? ProductUnit.PIECE,
+        minimumOrder: p.minimumOrder ?? 1,
+        maximumOrder: p.maximumOrder ?? p.totalQuantity,
+        totalQuantity: p.totalQuantity,
+        remainingQuantity: p.remainingQuantity ?? p.totalQuantity,
+      };
+    });
 
     const offer: Offer = {
       uuid: nanoid(10),
       name: data.name,
       description: data.description,
       icon: data.icon ?? undefined,
+      ...(globalQuantities ? { globalQuantities } : {}),
       products,
       pickupDate: data.pickupDate,
       pickupWindowStart: data.pickupWindowStart,
@@ -116,8 +155,17 @@ export class OfferService {
     offer.pickupWindowEnd = data.pickupWindowEnd ?? offer.pickupWindowEnd;
     offer.status = data.status ?? offer.status;
 
+    // Resolve which quantity fields are shared before rebuilding the products,
+    // so their values win over whatever each product line carries.
+    if (data.globalQuantities !== undefined) {
+      const normalized = normalizeGlobalQuantities(data.globalQuantities);
+      offer.globalQuantities = normalized;
+    }
+    const globals = offer.globalQuantities;
+
     if (Array.isArray(data.products)) {
-      offer.products = data.products.map((incoming) => {
+      offer.products = data.products.map((raw) => {
+        const incoming = withGlobalQuantities(raw, globals);
         const existing = offer.products.find((p) => p.name === incoming.name);
         if (!existing) {
           // New product line — start fully available
@@ -144,6 +192,15 @@ export class OfferService {
           remainingQuantity: Math.max(0, totalQuantity - bookedQuantity),
         };
       });
+    }
+
+    // With a shared stock pool the per-product remaining above is meaningless —
+    // every line mirrors the single pool the manager set / that bookings drew down.
+    if (isRemainingQuantityShared(offer)) {
+      const pool = offer.globalQuantities!.remainingQuantity ?? 0;
+      for (const product of offer.products) {
+        product.remainingQuantity = pool;
+      }
     }
 
     offer.updatedAt = Date.now();

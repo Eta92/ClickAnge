@@ -8,7 +8,15 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { Booking, Purchase } from '../../models/booking.model';
-import { Offer, Product, ProductUnit } from '../../models/offer.model';
+import {
+  Offer,
+  Product,
+  ProductUnit,
+  isMaximumOrderShared,
+  isRemainingQuantityShared,
+  sharedMaximumOrder,
+  sharedRemainingQuantity,
+} from '../../models/offer.model';
 import { CustomerProfile } from '../../models/customer-profile.model';
 import { Subscription } from 'rxjs';
 import {
@@ -69,23 +77,60 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     this.quantities[product.name] = value;
   }
 
+  // ---- shared-limit helpers (offer-wide max / stock pool) ----
+
+  get isMaximumShared(): boolean {
+    return !!this.offer && isMaximumOrderShared(this.offer);
+  }
+
+  get isRemainingShared(): boolean {
+    return !!this.offer && isRemainingQuantityShared(this.offer);
+  }
+
+  get sharedMaximum(): number {
+    return this.offer ? sharedMaximumOrder(this.offer) : 0;
+  }
+
+  /** Shared pool as the server reports it, plus this booking's own units when editing. */
+  get sharedStockCeiling(): number {
+    const pool = this.offer ? sharedRemainingQuantity(this.offer) : 0;
+    return pool + this.previousTotal;
+  }
+
+  /** Total units currently selected across every product in the form. */
+  get totalSelected(): number {
+    return (this.offer?.products ?? []).reduce(
+      (sum, p) => sum + this.getQuantity(p),
+      0,
+    );
+  }
+
+  private previousQuantity(name: string): number {
+    return this.booking?.purchases.find((p) => p.name === name)?.quantity ?? 0;
+  }
+
+  /** Units this booking already holds across all products (0 when creating). */
+  get previousTotal(): number {
+    return (this.booking?.purchases ?? []).reduce(
+      (sum, p) => sum + p.quantity,
+      0,
+    );
+  }
+
   getMaxQuantity(product: Product): number {
-    let max = product.remainingQuantity;
+    const othersSelected = this.totalSelected - this.getQuantity(product);
 
-    // If editing, add back the previously booked quantity for this product
-    if (this.booking) {
-      const previousPurchase = this.booking.purchases.find(
-        (p) => p.name === product.name,
-      );
-      if (previousPurchase) {
-        max += previousPurchase.quantity;
-      }
-    }
+    // Upper bound from stock: the shared pool, or this product's own count.
+    const stockCap = this.isRemainingShared
+      ? this.sharedStockCeiling - othersSelected
+      : product.remainingQuantity + this.previousQuantity(product.name);
 
-    // Also respect the maximum order limit per product
-    max = Math.min(max, product.maximumOrder);
+    // Upper bound from the max-order limit: shared across the booking, or per product.
+    const orderCap = this.isMaximumShared
+      ? this.sharedMaximum - othersSelected
+      : product.maximumOrder;
 
-    return max;
+    return Math.max(0, Math.min(stockCap, orderCap));
   }
 
   get selectedPurchases(): Purchase[] {
@@ -118,11 +163,22 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       const qtyError = this.bookingService.validateProductQuantity(
         product,
         quantity,
+        { skipMax: this.isMaximumShared, skipRemaining: this.isRemainingShared },
       );
       if (qtyError) {
         this.errorMessage = qtyError;
         return;
       }
+    }
+
+    const total = this.totalSelected;
+    if (this.isMaximumShared && total > this.sharedMaximum) {
+      this.errorMessage = `Maximum ${this.sharedMaximum} article(s) au total pour cette offre.`;
+      return;
+    }
+    if (this.isRemainingShared && total > this.sharedStockCeiling) {
+      this.errorMessage = `Seulement ${this.sharedStockCeiling} article(s) disponible(s) au total.`;
+      return;
     }
 
     const payload: CreateBookingPayload = {

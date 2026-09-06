@@ -129,6 +129,102 @@
     max-width: 66.66%;
   }
 
+  // Global (shared) input selection
+  .global-fields-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--color-sage);
+    border-radius: 8px;
+    background: rgba(var(--color-cream-rgb), 0.3);
+    color: var(--color-green);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: var(--color-green);
+      background: rgba(var(--color-green-rgb), 0.05);
+    }
+  }
+
+  .global-fields-caret {
+    font-size: 0.7rem;
+    color: var(--color-sage);
+  }
+
+  .global-fields-hint {
+    margin: 0.75rem 0;
+    font-size: 0.8rem;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--color-sage);
+  }
+
+  .global-fields-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+
+  .global-field-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-green);
+    cursor: pointer;
+
+    input {
+      cursor: pointer;
+      accent-color: var(--color-green);
+    }
+  }
+
+  // The "make this a shared offer-wide limit" toggle under a shared value input.
+  .global-field-check--behavior {
+    flex: 1 0 100%;
+    align-items: flex-start;
+    margin-top: -0.25rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+
+    span {
+      line-height: 1.35;
+    }
+
+    input {
+      margin-top: 0.15rem;
+      flex-shrink: 0;
+    }
+  }
+
+  .global-fields-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px dashed var(--color-sage);
+    border-radius: 10px;
+    background: rgba(var(--color-green-rgb), 0.04);
+
+    .form-label {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .form-label--full {
+      flex: 1 0 100%;
+    }
+  }
+
   // Multi-product editor
   .products-list {
     display: flex;

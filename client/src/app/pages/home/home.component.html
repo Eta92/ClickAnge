@@ -132,10 +132,17 @@
                     {{ product.name }} {{ product.unitPrice }}€{{
                       getUnitLabel(product.unitType)
                     }}
-                    ({{ product.remainingQuantity }})
+                    @if (!hasSharedStock(offer)) {
+                      ({{ product.remainingQuantity }})
+                    }
                   </span>
                 }
               </div>
+              @if (hasSharedStock(offer)) {
+                <div class="offer-shared-stock">
+                  Stock partagé : {{ sharedStock(offer) }} au total
+                </div>
+              }
             </div>
           </div>
         </div>
