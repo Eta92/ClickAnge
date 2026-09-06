@@ -6,7 +6,8 @@
     </div>
     <div class="brand-text">
       <h1 class="app-name">Click'Ange'Collecte</h1>
-      <p class="app-subtitle">Réservez, récupérez, savourez.</p>
+      <p class="app-subtitle">Application du réseau des anges</p>
+      <!--p class="app-subtitle">Réservez, récupérez, savourez.</p-->
     </div>
   </div>
 
@@ -234,6 +235,7 @@
   <app-booking-form
     [offer]="bookingFormOffer"
     [booking]="bookingFormBooking"
+    [readonly]="bookingFormReadonly"
     (saved)="onBookingSaved($event)"
     (cancelled)="onBookingCancelled()"
   >

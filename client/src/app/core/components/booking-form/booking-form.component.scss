@@ -224,6 +224,14 @@
     }
   }
 
+  .product-select-quantity--readonly {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f1e6;
+    border-color: #c7cbab;
+  }
+
   // Form labels
   .form-label {
     display: flex;

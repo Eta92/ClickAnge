@@ -88,9 +88,13 @@ export class SocketService {
       socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean }) => {
         try {
           const offer = await OfferService.closeOffer(this.io, data.uuid);
-          if (offer && data.notifyCustomers) {
-            const bookings = BookingService.getBookingsForOffer(data.uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
-            await CustomerService.notifyBookingConfirmed(offer, bookings);
+          if (offer) {
+            // Closing the offer locks in every active booking as CONFIRMED.
+            await BookingService.confirmActiveBookingsForOffer(offer.uuid);
+            if (data.notifyCustomers) {
+              const bookings = BookingService.getBookingsForOffer(data.uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
+              await CustomerService.notifyBookingConfirmed(offer, bookings);
+            }
           }
         } catch (err: any) {
           socket.emit('ToasterError', err.message);
@@ -100,8 +104,17 @@ export class SocketService {
       // ================================
       // ==== BOOKINGS ====
       // ================================
-      socket.on('getBookingsForOffer', (offerId: string) => {
-        socket.emit('GetBookingsForOffer', BookingService.getBookingsForOffer(offerId));
+      socket.on('getBookingsForOffer', async (offerId: string) => {
+        const bookings = BookingService.getBookingsForOffer(offerId);
+        // Enrich with the customer's phone number for the manager's overview / export.
+        const emails = [...new Set(bookings.map((b) => b.customerEmail))];
+        const customers = await MongoService.getCustomersByEmails(emails);
+        const phoneByEmail = new Map(customers.map((c) => [c.email, c.phone]));
+        const enriched = bookings.map((b) => ({
+          ...b,
+          customerPhone: phoneByEmail.get(b.customerEmail),
+        }));
+        socket.emit('GetBookingsForOffer', enriched);
       });
 
       socket.on('getCustomerProfile', async (customerEmail: string) => {
@@ -129,7 +142,13 @@ export class SocketService {
           return;
         }
         const bookings = await BookingService.getBookingsByCustomerEmail(customerEmail);
-        socket.emit('GetBookingsForCustomer', bookings);
+        // Attach the referenced offer so the customer can still see what they
+        // ordered once the offer is closed and no longer in the open list.
+        const enriched = bookings.map((b) => ({
+          ...b,
+          offer: OfferService.getOffer(b.offerId) ?? undefined,
+        }));
+        socket.emit('GetBookingsForCustomer', enriched);
       });
 
       socket.on(
@@ -188,6 +207,19 @@ export class SocketService {
             socket.emit('BookingCreated', booking);
           } catch (err: any) {
             console.error('Error updating booking:', err);
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      );
+
+      socket.on(
+        'updateBookingNote',
+        async (data: { bookingUuid: string; customerEmail: string; note?: string }) => {
+          try {
+            const booking = await BookingService.updateBookingNote(data.bookingUuid, data.customerEmail, data.note ?? '');
+            socket.emit('BookingCreated', booking);
+          } catch (err: any) {
+            console.error('Error updating booking note:', err);
             socket.emit('ToasterError', err.message);
           }
         }

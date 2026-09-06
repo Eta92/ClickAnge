@@ -100,7 +100,6 @@ const GLOBAL_FIELD_GROUPS: readonly GlobalFieldGroup[] = [
   { id: 'unitType', label: "Type d'unité", fields: ['unitType'] },
   { id: 'unitPrice', label: 'Prix unitaire', fields: ['unitPrice'] },
   { id: 'totalQuantity', label: 'Quantité disponible', fields: ['totalQuantity'] },
-  { id: 'remainingQuantity', label: 'Quantité restante', fields: ['remainingQuantity'] },
   { id: 'order', label: 'Commande min / max', fields: ['minimumOrder', 'maximumOrder'] },
 ];
 
@@ -252,6 +251,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       minimumOrder: 1,
       maximumOrder: 1,
       totalQuantity: 1,
+      // Server-maintained; a fresh line starts fully available.
       remainingQuantity: 1,
     };
   }
@@ -319,7 +319,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   /**
-   * `isMaximumShared` / `isRemainingShared` turn the shared value into one
+   * `isMaximumShared` / `isTotalShared` turn the shared value into one
    * offer-wide limit (see the model helpers). Default them on when the field
    * becomes shared — the manager can still untick the checkbox — and drop them
    * when it stops being shared.
@@ -327,8 +327,8 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   private syncSharedLimitFlags(globals: GlobalQuantities): void {
     if ('maximumOrder' in globals) globals.isMaximumShared ??= true;
     else delete globals.isMaximumShared;
-    if ('remainingQuantity' in globals) globals.isRemainingShared ??= true;
-    else delete globals.isRemainingShared;
+    if ('totalQuantity' in globals) globals.isTotalShared ??= true;
+    else delete globals.isTotalShared;
   }
 
   /** Copies one field's starting value from the first product into `globals`. */
@@ -352,10 +352,6 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         break;
       case 'maximumOrder':
         globals.maximumOrder = first?.maximumOrder ?? 1;
-        break;
-      case 'remainingQuantity':
-        globals.remainingQuantity =
-          first?.remainingQuantity ?? first?.totalQuantity ?? 1;
         break;
     }
   }
@@ -454,7 +450,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         this.errorMessage = `Une quantité valide est requise (${scope('totalQuantity')}).`;
         return false;
       }
-      if (!resolved.minimumOrder || resolved.minimumOrder < 1) {
+      if (!resolved.minimumOrder || resolved.minimumOrder <= 0) {
         this.errorMessage = `Une commande minimum valide est requise (${scope('minimumOrder')}).`;
         return false;
       }
@@ -535,7 +531,6 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
             minimumOrder: r.minimumOrder,
             maximumOrder: r.maximumOrder,
             totalQuantity: r.totalQuantity,
-            remainingQuantity: r.remainingQuantity,
           };
         }),
         pickupDate: this.formValue.pickupDate!,

@@ -3,7 +3,15 @@
 
 <div class="booking-modal">
   <div class="modal-header">
-    <h2>{{ booking ? "Modifier la réservation" : "Nouvelle réservation" }}</h2>
+    <h2>
+      {{
+        readonly
+          ? "Détails de la réservation"
+          : booking
+            ? "Modifier la réservation"
+            : "Nouvelle réservation"
+      }}
+    </h2>
     <button class="btn-close" (click)="cancel()">✕</button>
   </div>
 
@@ -36,9 +44,9 @@
       </div>
 
       <!-- Shared-limit notice -->
-      @if (isRemainingShared || isMaximumShared) {
+      @if (!readonly && (isTotalShared || isMaximumShared)) {
         <p class="shared-limits-note">
-          @if (isRemainingShared) {
+          @if (isTotalShared) {
             <span
               >Stock partagé : {{ sharedStockCeiling }} article(s) au total pour
               cette offre.</span
@@ -53,40 +61,55 @@
       <!-- Products list -->
       <div class="products-selection">
         @for (product of offer.products; track product.name) {
-          <div class="product-select-row">
-            <div class="product-select-info">
-              <span class="product-select-name">{{ product.name }}</span>
-              <span class="product-select-meta">
-                {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }}
-                @if (!isRemainingShared) {
-                  · {{ product.remainingQuantity }} disponible(s)
-                }
-                @if (!isMaximumShared) {
-                  · ({{ product.maximumOrder }} max)
-                }
-              </span>
+          @if (!readonly || getQuantity(product) > 0) {
+            <div class="product-select-row">
+              <div class="product-select-info">
+                <span class="product-select-name">{{ product.name }}</span>
+                <span class="product-select-meta">
+                  {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }}
+                  @if (!readonly) {
+                    @if (!isTotalShared) {
+                      · {{ product.remainingQuantity }} disponible(s)
+                    }
+                    @if (!isMaximumShared) {
+                      · ({{ product.maximumOrder }} max)
+                    }
+                  }
+                </span>
+              </div>
+              @if (readonly) {
+                <span class="product-select-quantity product-select-quantity--readonly">
+                  {{ getQuantity(product) }}
+                </span>
+              } @else {
+                <input
+                  type="number"
+                  class="product-select-quantity"
+                  min="0"
+                  step="any"
+                  [max]="getMaxQuantity(product)"
+                  [ngModel]="getQuantity(product)"
+                  (ngModelChange)="setQuantity(product, $event)"
+                  (keydown)="onKeyDown($event)"
+                />
+              }
             </div>
-            <input
-              type="number"
-              class="product-select-quantity"
-              min="0"
-              [max]="getMaxQuantity(product)"
-              [ngModel]="getQuantity(product)"
-              (ngModelChange)="setQuantity(product, $event)"
-              (keydown)="onKeyDown($event)"
-            />
-          </div>
+          }
         } @empty {
           <p class="empty-state">Aucun produit disponible pour cette offre.</p>
         }
       </div>
 
-      <!-- Note textarea -->
+      <!-- Note textarea — editable even in read-only mode -->
       <label class="form-label form-label--full">
-        Remarque (optionnel)
+        {{ readonly ? "Remarque" : "Remarque (optionnel)" }}
         <textarea
           [(ngModel)]="note"
-          placeholder="Demandes spéciales..."
+          [placeholder]="
+            readonly
+              ? 'Signaler une erreur, ajouter une précision...'
+              : 'Demandes spéciales...'
+          "
           rows="3"
         ></textarea>
       </label>
@@ -98,20 +121,31 @@
 
     <!-- Action buttons -->
     <div class="modal-footer">
-      <button class="btn btn-secondary" (click)="cancel()">Annuler</button>
-      <button
-        class="btn btn-primary"
-        [disabled]="isSubmitting || selectedPurchases.length === 0"
-        (click)="submit()"
-      >
-        {{
-          isSubmitting
-            ? "Enregistrement..."
-            : booking
-              ? "Mettre à jour la réservation"
-              : "Confirmer la réservation"
-        }}
-      </button>
+      @if (readonly) {
+        <button class="btn btn-secondary" (click)="cancel()">Fermer</button>
+        <button
+          class="btn btn-primary"
+          [disabled]="isSubmitting || !noteChanged"
+          (click)="saveNote()"
+        >
+          {{ isSubmitting ? "Enregistrement..." : "Enregistrer la remarque" }}
+        </button>
+      } @else {
+        <button class="btn btn-secondary" (click)="cancel()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          [disabled]="isSubmitting || selectedPurchases.length === 0"
+          (click)="submit()"
+        >
+          {{
+            isSubmitting
+              ? "Enregistrement..."
+              : booking
+                ? "Mettre à jour la réservation"
+                : "Confirmer la réservation"
+          }}
+        </button>
+      }
     </div>
   } @else {
     <p class="no-offer">Aucune offre sélectionnée.</p>

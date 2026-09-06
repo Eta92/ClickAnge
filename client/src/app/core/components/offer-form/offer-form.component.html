@@ -142,7 +142,7 @@
             </label>
           }
           @if (isGlobalField('totalQuantity')) {
-            <label class="form-label">
+            <label class="form-label form-label--full">
               Quantité disponible commune
               <input
                 type="number"
@@ -152,23 +152,11 @@
                 required
               />
             </label>
-          }
-          @if (isGlobalField('remainingQuantity')) {
-            <label class="form-label form-label--full">
-              Quantité restante commune
-              <input
-                type="number"
-                name="globalRemainingQuantity"
-                [(ngModel)]="formValue.globalQuantities!.remainingQuantity"
-                min="0"
-                required
-              />
-            </label>
             <label class="global-field-check global-field-check--behavior">
               <input
                 type="checkbox"
-                name="isRemainingShared"
-                [(ngModel)]="formValue.globalQuantities!.isRemainingShared"
+                name="isTotalShared"
+                [(ngModel)]="formValue.globalQuantities!.isTotalShared"
               />
               <span>
                 Stock partagé : une seule réserve pour tous les produits (chaque
@@ -184,16 +172,16 @@
                   type="number"
                   name="globalMinimumOrder"
                   [(ngModel)]="formValue.globalQuantities!.minimumOrder"
-                  min="1"
-                  step="1"
+                  min="0"
+                  step="any"
                   required
                 />
                 <input
                   type="number"
                   name="globalMaximumOrder"
                   [(ngModel)]="formValue.globalQuantities!.maximumOrder"
-                  min="1"
-                  step="1"
+                  min="0"
+                  step="any"
                   required
                 />
               </div>
@@ -302,16 +290,16 @@
                         type="number"
                         name="productMinimumOrder{{ $index }}"
                         [(ngModel)]="product.minimumOrder"
-                        min="1"
-                        step="1"
+                        min="0"
+                        step="any"
                         required
                       />
                       <input
                         type="number"
                         name="productMaximumOrder{{ $index }}"
                         [(ngModel)]="product.maximumOrder"
-                        min="1"
-                        step="1"
+                        min="0"
+                        step="any"
                         required
                       />
                     </div>

@@ -7,7 +7,7 @@ import {
   Product,
   ProductQuantity,
   ProductUnit,
-  isRemainingQuantityShared,
+  isTotalQuantityShared,
 } from '../models/offer.model';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
@@ -20,7 +20,6 @@ export interface CreateOfferProductInput {
   minimumOrder: number;
   maximumOrder: number;
   totalQuantity: number;
-  remainingQuantity?: number;
 }
 
 export interface CreateOfferInput {
@@ -47,11 +46,10 @@ function normalizeGlobalQuantities(globals?: GlobalQuantities | null): GlobalQua
   if (globals.unitType != null) out.unitType = globals.unitType;
   if (globals.unitPrice != null) out.unitPrice = globals.unitPrice;
   if (globals.totalQuantity != null) out.totalQuantity = globals.totalQuantity;
-  if (globals.remainingQuantity != null) out.remainingQuantity = globals.remainingQuantity;
   if (globals.minimumOrder != null) out.minimumOrder = globals.minimumOrder;
   if (globals.maximumOrder != null) out.maximumOrder = globals.maximumOrder;
   if (globals.isMaximumShared != null) out.isMaximumShared = globals.isMaximumShared;
-  if (globals.isRemainingShared != null) out.isRemainingShared = globals.isRemainingShared;
+  if (globals.isTotalShared != null) out.isTotalShared = globals.isTotalShared;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -110,7 +108,7 @@ export class OfferService {
         minimumOrder: p.minimumOrder ?? 1,
         maximumOrder: p.maximumOrder ?? p.totalQuantity,
         totalQuantity: p.totalQuantity,
-        remainingQuantity: p.remainingQuantity ?? p.totalQuantity,
+        remainingQuantity: p.totalQuantity,
       };
     });
 
@@ -194,12 +192,19 @@ export class OfferService {
       });
     }
 
-    // With a shared stock pool the per-product remaining above is meaningless —
-    // every line mirrors the single pool the manager set / that bookings drew down.
-    if (isRemainingQuantityShared(offer)) {
-      const pool = offer.globalQuantities!.remainingQuantity ?? 0;
+    // With a shared stock pool the per-product totals above are meaningless —
+    // every line mirrors the single total the manager set and the single
+    // remaining that bookings drew down.
+    if (isTotalQuantityShared(offer)) {
+      const total = offer.globalQuantities!.totalQuantity ?? 0;
+      const booked = offer.products.reduce(
+        (max, p) => Math.max(max, p.totalQuantity - p.remainingQuantity),
+        0
+      );
+      const remaining = Math.max(0, total - booked);
       for (const product of offer.products) {
-        product.remainingQuantity = pool;
+        product.totalQuantity = total;
+        product.remainingQuantity = remaining;
       }
     }
 

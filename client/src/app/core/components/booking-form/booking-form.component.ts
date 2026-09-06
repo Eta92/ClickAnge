@@ -13,7 +13,7 @@ import {
   Product,
   ProductUnit,
   isMaximumOrderShared,
-  isRemainingQuantityShared,
+  isTotalQuantityShared,
   sharedMaximumOrder,
   sharedRemainingQuantity,
 } from '../../models/offer.model';
@@ -33,6 +33,8 @@ import {
 export class BookingFormComponent implements OnChanges, OnDestroy {
   @Input() offer: Offer | null = null;
   @Input() booking: Booking | null = null;
+  /** View-only mode: the customer can inspect the booking but not change it. */
+  @Input() readonly = false;
 
   @Output() saved = new EventEmitter<Booking>();
   @Output() cancelled = new EventEmitter<void>();
@@ -83,8 +85,8 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     return !!this.offer && isMaximumOrderShared(this.offer);
   }
 
-  get isRemainingShared(): boolean {
-    return !!this.offer && isRemainingQuantityShared(this.offer);
+  get isTotalShared(): boolean {
+    return !!this.offer && isTotalQuantityShared(this.offer);
   }
 
   get sharedMaximum(): number {
@@ -121,7 +123,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     const othersSelected = this.totalSelected - this.getQuantity(product);
 
     // Upper bound from stock: the shared pool, or this product's own count.
-    const stockCap = this.isRemainingShared
+    const stockCap = this.isTotalShared
       ? this.sharedStockCeiling - othersSelected
       : product.remainingQuantity + this.previousQuantity(product.name);
 
@@ -143,7 +145,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
   }
 
   submit(): void {
-    if (!this.offer) return;
+    if (!this.offer || this.readonly) return;
 
     const profile = this.bookingService.getCustomerProfile();
     if (!profile) {
@@ -163,7 +165,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       const qtyError = this.bookingService.validateProductQuantity(
         product,
         quantity,
-        { skipMax: this.isMaximumShared, skipRemaining: this.isRemainingShared },
+        { skipMax: this.isMaximumShared, skipRemaining: this.isTotalShared },
       );
       if (qtyError) {
         this.errorMessage = qtyError;
@@ -176,7 +178,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       this.errorMessage = `Maximum ${this.sharedMaximum} article(s) au total pour cette offre.`;
       return;
     }
-    if (this.isRemainingShared && total > this.sharedStockCeiling) {
+    if (this.isTotalShared && total > this.sharedStockCeiling) {
       this.errorMessage = `Seulement ${this.sharedStockCeiling} article(s) disponible(s) au total.`;
       return;
     }
@@ -207,6 +209,42 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
         this.errorMessage = 'Failed to submit booking. Please try again.';
       },
     });
+  }
+
+  /** Whether the note differs from what's stored on the booking. */
+  get noteChanged(): boolean {
+    return this.note.trim() !== (this.booking?.note ?? '').trim();
+  }
+
+  /**
+   * Read-only mode still lets the customer amend the note (e.g. to flag a
+   * mistake). Products and quantities stay locked.
+   */
+  saveNote(): void {
+    if (!this.booking || !this.noteChanged) return;
+
+    const profile = this.bookingService.getCustomerProfile();
+    if (!profile) {
+      this.errorMessage = 'Veuillez vérifier votre email.';
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.errorMessage = null;
+
+    this.submitSub = this.bookingService
+      .updateBookingNote(this.booking.uuid, profile.email, this.note.trim())
+      .subscribe({
+        next: (updated) => {
+          this.saved.emit(updated);
+          this.isSubmitting = false;
+        },
+        error: (err) => {
+          console.error('Note update failed:', err);
+          this.isSubmitting = false;
+          this.errorMessage = 'Échec de la mise à jour. Réessayez.';
+        },
+      });
   }
 
   /** Convert ProductUnit enum value to display label */

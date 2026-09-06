@@ -12,7 +12,7 @@ import {
   Offer,
   OfferStatus,
   ProductUnit,
-  isRemainingQuantityShared,
+  isTotalQuantityShared,
   sharedRemainingQuantity,
 } from '../../core/models/offer.model';
 import { LoginService } from '../../core/auth/login.service';
@@ -48,6 +48,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   showBookingForm = false;
   bookingFormOffer: Offer | null = null;
   bookingFormBooking: Booking | null = null;
+  bookingFormReadonly = false;
   private _pendingOfferForAuth: Offer | null = null;
 
   // embedded offer-form state (manager only)
@@ -158,18 +159,26 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Look up the icon for a booking's associated offer */
   getBookingIcon(booking: Booking): string | null {
-    const offer = this.offers.find(
-      (o) => o._id === booking.offerId || o.uuid === booking.offerId,
-    );
-    return offer?.icon ?? null;
+    return this.offerForBooking(booking)?.icon ?? null;
   }
 
   /** Look up the pickup date from a booking's associated offer */
   getBookingPickupDate(booking: Booking): number {
-    const offer = this.offers.find(
-      (o) => o._id === booking.offerId || o.uuid === booking.offerId,
+    return this.offerForBooking(booking)?.pickupDate ?? booking.createdAt;
+  }
+
+  /**
+   * The offer a booking belongs to — the copy the server attached to the
+   * booking, falling back to the open-offers list.
+   */
+  private offerForBooking(booking: Booking): Offer | null {
+    return (
+      booking.offer ??
+      this.offers.find(
+        (o) => o._id === booking.offerId || o.uuid === booking.offerId,
+      ) ??
+      null
     );
-    return offer?.pickupDate ?? booking.createdAt;
   }
 
   /** Comma-separated summary of an offer's product names */
@@ -231,7 +240,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Offer uses one shared stock pool across its products (see model helper). */
   hasSharedStock(offer: Offer): boolean {
-    return isRemainingQuantityShared(offer);
+    return isTotalQuantityShared(offer);
   }
 
   /** Size of that shared pool. */
@@ -260,6 +269,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       this.customerProfile = JSON.parse(storedProfile);
       this.bookingFormOffer = this._pendingOfferForAuth;
       this.bookingFormBooking = null;
+      this.bookingFormReadonly = false;
       this.showBookingForm = true;
       this._pendingOfferForAuth = null;
     }
@@ -301,14 +311,27 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       );
       this.bookingFormOffer = offer;
       this.bookingFormBooking = existingBooking || null;
+      this.bookingFormReadonly = false;
       this.showBookingForm = true;
     }
   }
 
+  /**
+   * A booking is only editable while its offer is still open for booking. Once
+   * the offer closes, bookings are locked in (server-side too — see
+   * `BookingService.updateBooking`).
+   */
+  isBookingEditable(booking: Booking): boolean {
+    if (booking.status === BookingStatus.CANCELLED) return false;
+    return this.offerForBooking(booking)?.status === OfferStatus.OPEN;
+  }
+
   onEditBooking(booking: Booking): void {
-    this.bookingFormOffer =
-      this.offers.find((offer) => offer.uuid === booking.offerId) || null;
+    this.bookingFormOffer = this.offerForBooking(booking);
     this.bookingFormBooking = booking;
+    // Locked-in bookings open in a read-only view so the customer can still
+    // check what they ordered.
+    this.bookingFormReadonly = !this.isBookingEditable(booking);
     this.showBookingForm = true;
   }
 

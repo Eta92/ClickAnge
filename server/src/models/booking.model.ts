@@ -5,6 +5,8 @@ export interface Booking {
   offerId: string;
   customerEmail: string;
   customerName?: string;
+  /** Populated from the customer record when bookings are sent to the manager. */
+  customerPhone?: string;
   status: BookingStatus;
   purchases: Purchase[];
   note?: string;

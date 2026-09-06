@@ -104,23 +104,87 @@ export class OverviewComponent implements OnInit, OnDestroy {
   }
 
   exportExcel(): void {
-    const rows = this.bookings().map((b) => [
-      b.customerName ?? '',
-      b.customerEmail,
-      this.formatPurchases(b),
-      b.status === BookingStatus.CONFIRMED
-        ? 'Confirmé'
-        : b.status === BookingStatus.CANCELLED
-          ? 'Annulé'
-          : 'En attente',
-      b.note ?? '',
-      DateTime.fromMillis(b.confirmedAt || b.createdAt).toFormat(
-        'dd/MM/yyyy HH:mm',
-      ),
-    ]);
+    // One column per product, in the offer's product order, with any extra
+    // product names found in bookings appended afterwards.
+    const productNames = [
+      ...(this.offer?.products.map((p) => p.name) ?? []),
+    ];
+    for (const b of this.bookings()) {
+      for (const purchase of b.purchases) {
+        if (!productNames.includes(purchase.name)) {
+          productNames.push(purchase.name);
+        }
+      }
+    }
 
-    const header = ['Nom', 'Email', 'Produits', 'Statut', 'Note', 'Date'];
-    const csv = [header, ...rows]
+    const rows = this.bookings().map((b) => {
+      const quantities = new Map(
+        b.purchases.map((p) => [p.name, p.quantity]),
+      );
+      return [
+        b.customerName ?? '',
+        b.customerEmail,
+        b.customerPhone ?? '',
+        b.status === BookingStatus.CONFIRMED
+          ? 'Confirmé'
+          : b.status === BookingStatus.CANCELLED
+            ? 'Annulé'
+            : 'En attente',
+        b.note ?? '',
+        DateTime.fromMillis(b.confirmedAt || b.createdAt).toFormat(
+          'dd/MM/yyyy HH:mm',
+        ),
+        ...productNames.map((name) =>
+          quantities.has(name) ? String(quantities.get(name)) : '',
+        ),
+      ];
+    });
+
+    const header = [
+      'Nom',
+      'Email',
+      'Téléphone',
+      'Statut',
+      'Note',
+      'Date',
+      ...productNames,
+    ];
+
+    // Secondary header line with totals.
+    const allBookings = this.bookings();
+    const doneCount = allBookings.filter(
+      (b) =>
+        b.status === BookingStatus.FULFILLED ||
+        b.status === BookingStatus.CANCELLED,
+    ).length;
+    const lastEdition = allBookings.reduce(
+      (max, b) => Math.max(max, b.updatedAt || b.confirmedAt || b.createdAt),
+      0,
+    );
+    const totals = [
+      String(allBookings.length),
+      '',
+      '',
+      `${doneCount}/${allBookings.length}`,
+      '',
+      lastEdition
+        ? DateTime.fromMillis(lastEdition).toFormat('dd/MM/yyyy HH:mm')
+        : '',
+      ...productNames.map((name) =>
+        String(
+          allBookings.reduce(
+            (sum, b) =>
+              sum +
+              b.purchases
+                .filter((p) => p.name === name)
+                .reduce((s, p) => s + p.quantity, 0),
+            0,
+          ),
+        ),
+      ),
+    ];
+
+    const csv = [header, totals, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
       .join('\n');
 

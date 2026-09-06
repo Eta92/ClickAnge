@@ -44,6 +44,7 @@
         <tr>
           <th>Clients</th>
           <th>Email</th>
+          <th>Téléphone</th>
           <th>Produits</th>
           <th>Statut</th>
           <th>Note</th>
@@ -61,6 +62,7 @@
           >
             <td>{{ booking.customerName || "--" }}</td>
             <td class="email-cell">{{ booking.customerEmail }}</td>
+            <td class="phone-cell">{{ booking.customerPhone || "—" }}</td>
             <td class="purchases-cell">
               @if (booking.purchases.length === 1) {
                 <span class="product-tile">
@@ -102,7 +104,7 @@
           </tr>
           @if (booking.purchases.length > 1 && isBookingExpanded(booking)) {
             <tr class="products-expanded-row">
-              <td colspan="6">
+              <td colspan="7">
                 <div class="product-tiles">
                   @for (purchase of booking.purchases; track purchase.name) {
                     <span class="product-tile">

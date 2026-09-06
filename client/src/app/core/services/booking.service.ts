@@ -307,6 +307,44 @@ export class BookingService {
     });
   }
 
+  /**
+   * Update only a booking's note (customer action). Stays available after the
+   * offer closes, unlike a full booking edit.
+   */
+  updateBookingNote(
+    bookingUuid: string,
+    customerEmail: string,
+    note: string,
+  ): Observable<Booking> {
+    return new Observable<Booking>((subscriber) => {
+      const timeoutSub = setTimeout(() => {
+        if (!subscriber.closed) {
+          subscriber.error(new Error('No response updating note'));
+        }
+      }, 5000);
+
+      this._socket.emit('updateBookingNote', {
+        bookingUuid,
+        customerEmail,
+        note,
+      });
+
+      const sub = this._socket
+        .on<Booking>('BookingCreated')
+        .subscribe((booking) => {
+          if (booking.uuid !== bookingUuid) return;
+          clearTimeout(timeoutSub);
+          subscriber.next(booking);
+          subscriber.complete();
+        });
+
+      return () => {
+        clearTimeout(timeoutSub);
+        sub.unsubscribe();
+      };
+    });
+  }
+
   /** Update offer status via Socket.IO (manager action) */
   updateOfferStatus(offerUuid: string, status: number): Observable<Offer> {
     return new Observable<Offer>((subscriber) => {

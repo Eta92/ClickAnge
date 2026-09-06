@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { Booking, BookingStatus, Purchase } from '../models/booking.model';
-import { Offer, OfferStatus, isMaximumOrderShared, isRemainingQuantityShared } from '../models/offer.model';
+import { Offer, OfferStatus, isMaximumOrderShared, isTotalQuantityShared } from '../models/offer.model';
 import { MongoService } from './mongo.service';
 import { OfferService } from './offer.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -45,7 +45,8 @@ export class BookingService {
     }
 
     const sharedMax = isMaximumOrderShared(offer) ? offer.globalQuantities!.maximumOrder! : undefined;
-    const sharedRemaining = isRemainingQuantityShared(offer) ? offer.globalQuantities!.remainingQuantity! : undefined;
+    // The shared pool's current level is mirrored onto every product line.
+    const sharedRemaining = isTotalQuantityShared(offer) ? (offer.products[0]?.remainingQuantity ?? 0) : undefined;
 
     for (const purchase of purchases) {
       const product = offer.products.find((p) => p.name === purchase.name);
@@ -71,13 +72,13 @@ export class BookingService {
 
   /** Applies (consume=1) or reverses (restore=-1) purchases against offer availability */
   private static applyPurchases(offer: Offer, purchases: Array<Purchase>, sign: 1 | -1): void {
-    if (isRemainingQuantityShared(offer)) {
+    if (isTotalQuantityShared(offer)) {
       // Single pool: draw the whole booking down from it, then mirror onto every
       // product so displays and other consumers stay coherent.
-      const pool = offer.globalQuantities!;
-      pool.remainingQuantity = Math.max(0, (pool.remainingQuantity ?? 0) - sign * this.totalUnits(purchases));
+      const current = offer.products[0]?.remainingQuantity ?? offer.globalQuantities!.totalQuantity ?? 0;
+      const next = Math.max(0, current - sign * this.totalUnits(purchases));
       for (const product of offer.products) {
-        product.remainingQuantity = pool.remainingQuantity;
+        product.remainingQuantity = next;
       }
     } else {
       for (const purchase of purchases) {
@@ -89,9 +90,7 @@ export class BookingService {
 
     offer.updatedAt = Date.now();
 
-    const soldOut = isRemainingQuantityShared(offer)
-      ? (offer.globalQuantities!.remainingQuantity ?? 0) <= 0
-      : offer.products.every((p) => p.remainingQuantity <= 0);
+    const soldOut = offer.products.every((p) => p.remainingQuantity <= 0);
 
     if (soldOut) {
       offer.status = OfferStatus.CLOSED;
@@ -183,6 +182,46 @@ export class BookingService {
     this.io?.emit('OfferUpdated', offer);
     this.io?.emit('BookingCreated', booking);
     return booking;
+  }
+
+  /**
+   * Updates only a booking's note. Unlike `updateBooking` this stays allowed
+   * after the offer closes, so a customer can still flag a mistake — the
+   * products and quantities are left untouched.
+   */
+  public static async updateBookingNote(uuid: string, customerEmail: string, note: string): Promise<Booking> {
+    const booking = this.bookingMap[uuid];
+    if (!booking) throw new Error('Booking not found');
+    if (booking.customerEmail !== customerEmail || booking.status === BookingStatus.CANCELLED) {
+      throw new Error('Cannot update this booking');
+    }
+
+    booking.note = note || undefined;
+    booking.updatedAt = Date.now();
+
+    this.bookingMap[uuid] = booking;
+    await MongoService.upsertBooking(booking);
+    this.io?.emit('BookingCreated', booking);
+    return booking;
+  }
+
+  /**
+   * Confirms every still-active (non-cancelled) booking on an offer. Called when
+   * an offer closes: pending bookings become CONFIRMED and customers can no
+   * longer edit them (see `updateBooking`, which requires an OPEN offer).
+   */
+  public static async confirmActiveBookingsForOffer(offerId: string): Promise<void> {
+    const bookings = this.getBookingsForOffer(offerId).filter(
+      (b) => b.status !== BookingStatus.CANCELLED && b.status !== BookingStatus.CONFIRMED
+    );
+
+    for (const booking of bookings) {
+      booking.status = BookingStatus.CONFIRMED;
+      booking.updatedAt = Date.now();
+      this.bookingMap[booking.uuid] = booking;
+      await MongoService.upsertBooking(booking);
+      this.io?.emit('BookingStatusChanged', booking);
+    }
   }
 
   public static async updateBookingStatus(uuid: string, status: BookingStatus): Promise<Booking | null> {

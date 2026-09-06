@@ -249,10 +249,15 @@
   }
 }
 
-.email-cell {
+.email-cell,
+.phone-cell {
   font-family: "Courier New", monospace;
   font-size: 0.8rem;
   color: #666;
+}
+
+.phone-cell {
+  white-space: nowrap;
 }
 
 .purchases-cell {

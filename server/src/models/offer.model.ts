@@ -37,10 +37,10 @@ export interface ProductQuantity {
  * per product: a `ProductQuantity` with every field optional. Only the toggled
  * keys are present; each is also mirrored onto every product.
  *
- * `isMaximumShared` / `isRemainingShared` mark that `maximumOrder` /
- * `remainingQuantity` act as one offer-wide limit rather than a per-product one
- * (see `isMaximumOrderShared` / `isRemainingQuantityShared`). They are set by
- * the manager alongside the value, not read by the sharing checkboxes.
+ * `isMaximumShared` / `isTotalShared` mark that `maximumOrder` / `totalQuantity`
+ * act as one offer-wide limit rather than a per-product one (see
+ * `isMaximumOrderShared` / `isTotalQuantityShared`). They are set by the manager
+ * alongside the value, not read by the sharing checkboxes.
  */
 export interface GlobalQuantities {
   unitType?: ProductUnit;
@@ -48,9 +48,8 @@ export interface GlobalQuantities {
   minimumOrder?: number;
   maximumOrder?: number;
   totalQuantity?: number;
-  remainingQuantity?: number;
   isMaximumShared?: boolean;
-  isRemainingShared?: boolean;
+  isTotalShared?: boolean;
 }
 
 /** The value fields that have a "shared" checkbox in the offer form. */
@@ -59,8 +58,7 @@ export type GlobalQuantityField =
   | 'unitPrice'
   | 'minimumOrder'
   | 'maximumOrder'
-  | 'totalQuantity'
-  | 'remainingQuantity';
+  | 'totalQuantity';
 
 export enum OfferStatus {
   DRAFT,
@@ -88,10 +86,11 @@ export function isMaximumOrderShared(offer: OfferGlobals): boolean {
 }
 
 /**
- * True when the offer's remaining stock is one pool shared across its products:
- * booking any product draws it down, and it closes the offer when it hits zero.
+ * True when the offer's stock is one pool shared across its products: the
+ * manager set a single total, booking any product draws it down, and the offer
+ * closes when it hits zero.
  */
-export function isRemainingQuantityShared(offer: OfferGlobals): boolean {
+export function isTotalQuantityShared(offer: OfferGlobals): boolean {
   const g = offer.globalQuantities;
-  return g?.isRemainingShared === true && g.remainingQuantity != null;
+  return g?.isTotalShared === true && g.totalQuantity != null;
 }
