@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+
+# Member allowlist for the pre-release auth lock — holds real emails (PII),
+# managed directly on the server. See .whitelist.example for the format.
+.whitelist

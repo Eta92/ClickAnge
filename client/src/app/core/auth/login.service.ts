@@ -1,4 +1,5 @@
 import { Injectable, OnDestroy, signal, computed } from '@angular/core';
+import { ToastrService } from 'ngx-toastr';
 import { first } from 'rxjs/operators';
 import { CustomerProfile } from '../models/customer-profile.model';
 import { SocketService } from '../socket/socket.service';
@@ -93,6 +94,7 @@ export class LoginService implements OnDestroy {
       .pipe(first())
       .subscribe((message) => {
         this.patch({ isSubmitting: false, errorMessage: message });
+        this.toastr.error(message, 'Accès restreint');
       });
 
     this.socketService
@@ -158,5 +160,8 @@ export class LoginService implements OnDestroy {
 
   ngOnDestroy(): void {}
 
-  constructor(private socketService: SocketService) {}
+  constructor(
+    private socketService: SocketService,
+    private toastr: ToastrService,
+  ) {}
 }

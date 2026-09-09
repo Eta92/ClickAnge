@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { Booking } from '../models/booking.model';
 import { Customer } from '../models/customer.model';
 import { Offer } from '../models/offer.model';
+import { WHITELIST_MESSAGE, isWhitelisted } from '../helpers/whitelist.helper';
 import { EmailService } from './email.service';
 import { MongoService } from './mongo.service';
 
@@ -17,6 +18,10 @@ export class CustomerService {
       throw new Error('Invalid email address');
     }
 
+    if (!isWhitelisted(normalizedEmail)) {
+      throw new Error(WHITELIST_MESSAGE);
+    }
+
     const existing = await MongoService.getCustomerByEmail(normalizedEmail);
     const code = randomInt(100000, 1000000).toString();
 
@@ -28,7 +33,7 @@ export class CustomerService {
       emailVerified: existing?.emailVerified || false,
       verificationCode: code,
       verificationExpires: Date.now() + CODE_TTL_MS,
-      isSubscribed: existing?.isSubscribed,
+      isSubscribed: existing ? existing.isSubscribed : true,
       resignationCode: existing?.resignationCode || nanoid(16),
       createdAt: existing?.createdAt || Date.now(),
       lastBookingAt: existing?.lastBookingAt,
@@ -60,6 +65,11 @@ export class CustomerService {
   // validates the code sent by the customer and marks their email as verified
   public static async confirmVerificationCode(email: string, code: string): Promise<Customer> {
     const normalizedEmail = (email || '').trim().toLowerCase();
+
+    if (!isWhitelisted(normalizedEmail)) {
+      throw new Error(WHITELIST_MESSAGE);
+    }
+
     const customer = await MongoService.getCustomerByEmail(normalizedEmail);
 
     const isValid =
