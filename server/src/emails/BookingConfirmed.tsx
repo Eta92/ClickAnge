@@ -47,7 +47,10 @@ export const BookingConfirmed: React.FC<BookingConfirmedProps> = ({
           </Text>
         ))}
         {recap.total > 0 ? (
-          <Text style={styles.totalRow}>Total estimé : {formatPrice(recap.total)}</Text>
+          <Text style={styles.totalRow}>
+            Prix total : {formatPrice(recap.total)}
+            {recap.promotionApplied ? ' (prix promotionnel)' : ''}
+          </Text>
         ) : null}
         {recap.note ? (
           <Text style={{ ...styles.subtle, margin: '12px 0 0' }}>

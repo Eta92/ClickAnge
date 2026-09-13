@@ -8,13 +8,11 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { CustomerProfile } from '../../core/models/customer-profile.model';
+import { Offer, OfferStatus, ProductUnit } from '../../core/models/offer.model';
 import {
-  Offer,
-  OfferStatus,
-  ProductUnit,
   isTotalQuantityShared,
   sharedRemainingQuantity,
-} from '../../core/models/offer.model';
+} from '../../core/models/offer.helper';
 import { LoginService } from '../../core/auth/login.service';
 import { BookingService } from '../../core/services/booking.service';
 import { ToastrService } from 'ngx-toastr';

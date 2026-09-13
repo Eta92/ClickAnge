@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
-import { GlobalQuantities, Offer, OfferStatus, Product, ProductQuantity, ProductUnit, isTotalQuantityShared } from '../models/offer.model';
+import { GlobalQuantities, Offer, OfferStatus, Product, ProductQuantity, ProductUnit } from '../models/offer.model';
+import { isTotalQuantityShared } from '../models/offer.helper';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -40,6 +41,8 @@ function normalizeGlobalQuantities(globals?: GlobalQuantities | null): GlobalQua
   if (globals.maximumOrder != null) out.maximumOrder = globals.maximumOrder;
   if (globals.isMaximumShared != null) out.isMaximumShared = globals.isMaximumShared;
   if (globals.isTotalShared != null) out.isTotalShared = globals.isTotalShared;
+  if (globals.promotionEnabled != null) out.promotionEnabled = globals.promotionEnabled;
+  if (globals.promotionPrice != null) out.promotionPrice = globals.promotionPrice;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

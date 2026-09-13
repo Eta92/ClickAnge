@@ -191,12 +191,42 @@
                 type="checkbox"
                 name="isMaximumShared"
                 [(ngModel)]="formValue.globalQuantities!.isMaximumShared"
+                (change)="onMaximumSharedChange()"
               />
               <span>
                 Maximum partagé : le total d'une réservation (tous produits
                 confondus) ne peut pas dépasser ce maximum.
               </span>
             </label>
+
+            @if (formValue.globalQuantities!.isMaximumShared) {
+              <label class="global-field-check global-field-check--behavior">
+                <input
+                  type="checkbox"
+                  name="promotionEnabled"
+                  [checked]="!!formValue.globalQuantities!.promotionEnabled"
+                  (change)="togglePromotion()"
+                />
+                <span>
+                  Promotion : proposer un prix spécial lorsque la réservation
+                  atteint le maximum partagé (bundle complet).
+                </span>
+              </label>
+
+              @if (formValue.globalQuantities!.promotionEnabled) {
+                <label class="form-label">
+                  Prix promotionnel (€)
+                  <input
+                    type="number"
+                    name="promotionPrice"
+                    [(ngModel)]="formValue.globalQuantities!.promotionPrice"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  />
+                </label>
+              }
+            }
           }
         </div>
       }

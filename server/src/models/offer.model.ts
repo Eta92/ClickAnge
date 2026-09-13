@@ -51,6 +51,8 @@ export interface GlobalQuantities {
   totalQuantity?: number;
   isMaximumShared?: boolean;
   isTotalShared?: boolean;
+  promotionEnabled?: boolean;
+  promotionPrice?: number;
 }
 
 /** The value fields that have a "shared" checkbox in the offer form. */
@@ -68,25 +70,4 @@ export enum ProductUnit {
   KILOGRAM = 'kilogramme',
   LITER = 'litre',
   OTHER = 'autre',
-}
-
-type OfferGlobals = Pick<Offer, 'globalQuantities'>;
-
-/**
- * True when the offer's max-order limit is a single cap on the whole booking
- * (sum of every product's quantity) instead of a per-product maximum.
- */
-export function isMaximumOrderShared(offer: OfferGlobals): boolean {
-  const g = offer.globalQuantities;
-  return g?.isMaximumShared === true && g.maximumOrder != null;
-}
-
-/**
- * True when the offer's stock is one pool shared across its products: the
- * manager set a single total, booking any product draws it down, and the offer
- * closes when it hits zero.
- */
-export function isTotalQuantityShared(offer: OfferGlobals): boolean {
-  const g = offer.globalQuantities;
-  return g?.isTotalShared === true && g.totalQuantity != null;
 }

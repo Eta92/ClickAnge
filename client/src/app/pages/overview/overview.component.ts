@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DateTime } from 'luxon';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { Offer, OfferStatus } from '../../core/models/offer.model';
+import { computeOrderTotal } from '../../core/models/offer.helper';
 import { BookingService } from '../../core/services/booking.service';
 
 @Component({
@@ -134,6 +135,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
         DateTime.fromMillis(b.confirmedAt || b.createdAt).toFormat(
           'dd/MM/yyyy HH:mm',
         ),
+        this.getBookingTotal(b).toFixed(2),
         ...productNames.map((name) =>
           quantities.has(name) ? String(quantities.get(name)) : '',
         ),
@@ -147,6 +149,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
       'Statut',
       'Note',
       'Date',
+      'Prix total (€)',
       ...productNames,
     ];
 
@@ -170,6 +173,9 @@ export class OverviewComponent implements OnInit, OnDestroy {
       lastEdition
         ? DateTime.fromMillis(lastEdition).toFormat('dd/MM/yyyy HH:mm')
         : '',
+      allBookings
+        .reduce((sum, b) => sum + this.getBookingTotal(b), 0)
+        .toFixed(2),
       ...productNames.map((name) =>
         String(
           allBookings.reduce(
@@ -197,6 +203,11 @@ export class OverviewComponent implements OnInit, OnDestroy {
     a.download = `ClickAnge-${this.offer!.name}-${DateTime.now().toFormat("dd.MM.yyyy-HH'h'mm")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  /** Total price to bill the customer for this booking, promotion included. */
+  getBookingTotal(booking: Booking): number {
+    return this.offer ? computeOrderTotal(this.offer, booking.purchases) : 0;
   }
 
   /** Human-readable "name x qty, name x qty" summary of a booking's purchases */

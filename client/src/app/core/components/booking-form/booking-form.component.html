@@ -112,6 +112,17 @@
         }
       </div>
 
+      <!-- Order total -->
+      @if (selectedPurchases.length > 0) {
+        <p class="booking-total">
+          <span>Prix total :</span>
+          <strong>{{ totalPrice | number: "1.2-2" }}€</strong>
+          @if (promotionApplied) {
+            <span class="promotion-badge">Prix promotionnel</span>
+          }
+        </p>
+      }
+
       <!-- Note textarea — editable even in read-only mode -->
       <label class="form-label form-label--full">
         {{ readonly ? "Remarque" : "Remarque (optionnel)" }}

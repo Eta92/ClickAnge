@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { Booking, BookingStatus, Purchase } from '../models/booking.model';
-import { Offer, OfferStatus, isMaximumOrderShared, isTotalQuantityShared } from '../models/offer.model';
+import { Offer, OfferStatus } from '../models/offer.model';
+import { isMaximumOrderShared, isTotalQuantityShared } from '../models/offer.helper';
 import { MongoService } from './mongo.service';
 import { OfferService } from './offer.service';
 import { SyncHelper } from '../helpers/sync.helper';

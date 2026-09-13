@@ -8,15 +8,15 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { Booking, Purchase } from '../../models/booking.model';
+import { Offer, Product, ProductUnit } from '../../models/offer.model';
 import {
-  Offer,
-  Product,
-  ProductUnit,
+  computeOrderTotal,
   isMaximumOrderShared,
+  isPromotionActive,
   isTotalQuantityShared,
   sharedMaximumOrder,
   sharedRemainingQuantity,
-} from '../../models/offer.model';
+} from '../../models/offer.helper';
 import { CustomerProfile } from '../../models/customer-profile.model';
 import { Subscription } from 'rxjs';
 import {
@@ -133,6 +133,23 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       : product.maximumOrder;
 
     return Math.max(0, Math.min(stockCap, orderCap));
+  }
+
+  /** Whether the offer has a promotion price configured for its full bundle. */
+  get promotionActive(): boolean {
+    return !!this.offer && isPromotionActive(this.offer);
+  }
+
+  /** True once the selected quantities reach the shared maximum (bundle complete). */
+  get promotionApplied(): boolean {
+    return (
+      this.promotionActive && this.totalSelected > 0 && this.totalSelected >= this.sharedMaximum
+    );
+  }
+
+  /** Total price for the currently selected purchases, promotion included. */
+  get totalPrice(): number {
+    return this.offer ? computeOrderTotal(this.offer, this.selectedPurchases) : 0;
   }
 
   get selectedPurchases(): Purchase[] {

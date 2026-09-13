@@ -252,6 +252,33 @@
     text-overflow: ellipsis;
   }
 
+  .booking-total {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--color-sage);
+    border-radius: 8px;
+    background: rgba(var(--color-green-rgb), 0.05);
+    font-size: 0.875rem;
+    color: var(--color-green);
+
+    strong {
+      font-size: 1.1rem;
+    }
+  }
+
+  .promotion-badge {
+    margin-left: auto;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #f4c575; // gold secondary
+    color: #4d4f37; // green text on gold
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
   // Form labels
   .form-label {
     display: flex;

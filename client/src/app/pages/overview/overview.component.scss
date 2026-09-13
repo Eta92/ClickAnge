@@ -318,6 +318,12 @@
   padding: 0.25rem 0;
 }
 
+.price-cell {
+  font-weight: 700;
+  color: var(--color-green);
+  white-space: nowrap;
+}
+
 .note-cell {
   max-width: 200px;
   white-space: nowrap;

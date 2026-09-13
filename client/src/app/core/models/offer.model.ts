@@ -41,6 +41,11 @@ export interface ProductQuantity {
  * act as one offer-wide limit rather than a per-product one (see
  * `isMaximumOrderShared` / `isTotalQuantityShared`). They are set by the manager
  * alongside the value, not read by the sharing checkboxes.
+ *
+ * `promotionEnabled` / `promotionPrice` only apply when the maximum order is
+ * shared: they let the manager set a special total price for a booking that
+ * reaches the full shared maximum (the whole bundle), replacing the normal
+ * per-unit total (see `isPromotionActive`).
  */
 export interface GlobalQuantities {
   unitType?: ProductUnit;
@@ -50,6 +55,8 @@ export interface GlobalQuantities {
   totalQuantity?: number;
   isMaximumShared?: boolean;
   isTotalShared?: boolean;
+  promotionEnabled?: boolean;
+  promotionPrice?: number;
 }
 
 /** The value fields that have a "shared" checkbox in the offer form. */
@@ -71,53 +78,4 @@ export enum ProductUnit {
   PIECE = 'pièce',
   LITER = 'litre',
   OTHER = 'autre',
-}
-
-type OfferGlobals = Pick<Offer, 'globalQuantities'>;
-type OfferStock = Pick<Offer, 'globalQuantities' | 'products'>;
-
-/**
- * True when the offer's max-order limit is a single cap on the whole booking
- * (sum of every product's quantity) instead of a per-product maximum.
- */
-export function isMaximumOrderShared(offer: OfferGlobals): boolean {
-  const g = offer.globalQuantities;
-  return g?.isMaximumShared === true && g.maximumOrder != null;
-}
-
-/**
- * True when the offer's stock is one pool shared across its products: the
- * manager set a single total, booking any product draws it down, and the offer
- * closes when it hits zero.
- */
-export function isTotalQuantityShared(offer: OfferGlobals): boolean {
-  const g = offer.globalQuantities;
-  return g?.isTotalShared === true && g.totalQuantity != null;
-}
-
-/** The shared total stock the manager configured, or 0 when not shared. */
-export function sharedTotalQuantity(offer: OfferGlobals): number {
-  return isTotalQuantityShared(offer)
-    ? (offer.globalQuantities?.totalQuantity ?? 0)
-    : 0;
-}
-
-/**
- * What's left of the shared pool right now. Every product mirrors the pool, so
- * it's read off the first product, falling back to the configured total.
- */
-export function sharedRemainingQuantity(offer: OfferStock): number {
-  if (!isTotalQuantityShared(offer)) return 0;
-  return (
-    offer.products?.[0]?.remainingQuantity ??
-    offer.globalQuantities?.totalQuantity ??
-    0
-  );
-}
-
-/** The shared per-booking cap, or 0 when the offer doesn't use one. */
-export function sharedMaximumOrder(offer: OfferGlobals): number {
-  return isMaximumOrderShared(offer)
-    ? (offer.globalQuantities?.maximumOrder ?? 0)
-    : 0;
 }

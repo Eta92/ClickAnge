@@ -332,9 +332,38 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
    */
   private syncSharedLimitFlags(globals: GlobalQuantities): void {
     if ('maximumOrder' in globals) globals.isMaximumShared ??= true;
-    else delete globals.isMaximumShared;
+    else {
+      delete globals.isMaximumShared;
+      delete globals.promotionEnabled;
+      delete globals.promotionPrice;
+    }
     if ('totalQuantity' in globals) globals.isTotalShared ??= true;
     else delete globals.isTotalShared;
+  }
+
+  /** The "maximum partagé" checkbox is bound directly to the model; clear the
+   *  dependent promotion fields when the manager unticks it. */
+  onMaximumSharedChange(): void {
+    if (!this.formValue.globalQuantities?.isMaximumShared) {
+      delete this.formValue.globalQuantities?.promotionEnabled;
+      delete this.formValue.globalQuantities?.promotionPrice;
+    }
+  }
+
+  /**
+   * Toggles the promotion feature: only available once the maximum order is
+   * shared. Enabling it seeds an empty price for the manager to fill in;
+   * disabling it drops both fields.
+   */
+  togglePromotion(): void {
+    const globals = { ...(this.formValue.globalQuantities ?? {}) };
+    if (globals.promotionEnabled) {
+      delete globals.promotionEnabled;
+      delete globals.promotionPrice;
+    } else {
+      globals.promotionEnabled = true;
+    }
+    this.formValue.globalQuantities = globals;
   }
 
   /** Copies one field's starting value from the first product into `globals`. */
@@ -490,6 +519,14 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         resolved.maximumOrder < resolved.minimumOrder
       ) {
         this.errorMessage = `La commande maximum doit être supérieure ou égale au minimum (${scope('maximumOrder')}).`;
+        return false;
+      }
+    }
+
+    const globals = this.formValue.globalQuantities;
+    if (globals?.isMaximumShared && globals.promotionEnabled) {
+      if (typeof globals.promotionPrice !== 'number' || globals.promotionPrice <= 0) {
+        this.errorMessage = 'Un prix promotionnel valide est requis.';
         return false;
       }
     }

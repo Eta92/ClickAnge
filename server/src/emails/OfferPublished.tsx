@@ -1,6 +1,7 @@
 import { Button, Heading, Hr, Section, Text } from '@react-email/components';
 import * as React from 'react';
 import { Offer } from '../models/offer.model';
+import { isPromotionActive, sharedMaximumOrder } from '../models/offer.helper';
 import { Layout } from './components/Layout';
 import { UNIT_SUFFIX, formatPickupDate, formatPrice, formatTime } from './format';
 import { appUrl, palette, styles } from './theme';
@@ -33,6 +34,12 @@ export const OfferPublished: React.FC<OfferPublishedProps> = ({
             {UNIT_SUFFIX[product.unitType] ?? ''}
           </Text>
         ))}
+        {isPromotionActive(offer) ? (
+          <Text style={{ ...styles.text, margin: '8px 0 0' }}>
+            🎉 Prix promotionnel de <strong>{formatPrice(offer.globalQuantities!.promotionPrice!)}</strong> si vous
+            réservez la totalité du lot ({sharedMaximumOrder(offer)} max).
+          </Text>
+        ) : null}
         <Text style={{ ...styles.subtle, margin: '12px 0 0' }}>
           Retrait le <strong>{formatPickupDate(offer.pickupDate)}</strong> entre{' '}
           <strong>{formatTime(offer.pickupWindowStart)}</strong> et{' '}

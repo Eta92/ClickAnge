@@ -46,6 +46,7 @@
           <th>Email</th>
           <th>Téléphone</th>
           <th>Produits</th>
+          <th>Prix total</th>
           <th>Statut</th>
           <th>Note</th>
           <th>Date</th>
@@ -85,6 +86,9 @@
                 </button>
               }
             </td>
+            <td class="price-cell">
+              {{ getBookingTotal(booking) | number: "1.2-2" }}€
+            </td>
             <td>
               <select
                 class="status-select"
@@ -104,7 +108,7 @@
           </tr>
           @if (booking.purchases.length > 1 && isBookingExpanded(booking)) {
             <tr class="products-expanded-row">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="product-tiles">
                   @for (purchase of booking.purchases; track purchase.name) {
                     <span class="product-tile">
