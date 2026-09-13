@@ -232,6 +232,26 @@
     border-color: #c7cbab;
   }
 
+  .product-select-quantity-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  // Fixed width so the unit label lines up the same across rows regardless
+  // of word length ("kilos" vs "pièces").
+  .product-select-unit {
+    width: 2.5rem;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: var(--color-sage);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   // Form labels
   .form-label {
     display: flex;

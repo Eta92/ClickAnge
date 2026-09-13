@@ -17,6 +17,7 @@ export interface Offer {
   updatedAt?: number;
   publishedAt?: number;
   closedAt?: number;
+  autoCloseAt?: number;
 }
 
 export interface Product extends ProductQuantity {
@@ -53,12 +54,7 @@ export interface GlobalQuantities {
 }
 
 /** The value fields that have a "shared" checkbox in the offer form. */
-export type GlobalQuantityField =
-  | 'unitType'
-  | 'unitPrice'
-  | 'minimumOrder'
-  | 'maximumOrder'
-  | 'totalQuantity';
+export type GlobalQuantityField = 'unitType' | 'unitPrice' | 'minimumOrder' | 'maximumOrder' | 'totalQuantity';
 
 export enum OfferStatus {
   DRAFT,

@@ -144,6 +144,15 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       .filter((purchase) => purchase.quantity > 0);
   }
 
+  get getGlobalUnit(): string {
+    if (!this.offer || this.offer.products.length === 0) {
+      return '';
+    }
+    return (
+      this.getUnitLabel(this.offer.products[0].unitType).replace('/', '') ?? ''
+    );
+  }
+
   submit(): void {
     if (!this.offer || this.readonly) return;
 
@@ -256,6 +265,18 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       [ProductUnit.OTHER]: '',
     };
     return labels[unitType] ?? '';
+  }
+
+  /** Short unit name shown next to the quantity input, pluralized above 1. */
+  getUnitShortLabel(unitType: ProductUnit, quantity: number): string {
+    const labels: Record<ProductUnit, string> = {
+      [ProductUnit.PIECE]: 'pièce',
+      [ProductUnit.KILOGRAM]: 'kilo',
+      [ProductUnit.LITER]: 'litre',
+      [ProductUnit.OTHER]: 'autre',
+    };
+    const label = labels[unitType] ?? '';
+    return quantity > 1 ? `${label}s` : label;
   }
 
   cancel(): void {

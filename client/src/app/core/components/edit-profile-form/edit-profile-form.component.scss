@@ -137,8 +137,7 @@
   }
 
   input[type="checkbox"] {
-    width: 1rem;
-    height: 1rem;
+    // sizing comes from the global input[type='checkbox'] rule in styles.scss
     flex-shrink: 0;
     accent-color: #4d4f37; // green primary
   }

@@ -263,6 +263,13 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     return labels[unitType] ?? '';
   }
 
+  getGlobalUnit(offer: Offer): string {
+    if (!offer || offer.products.length === 0) {
+      return '';
+    }
+    return this.getUnitLabel(offer.products[0].unitType).replace('/', '') ?? '';
+  }
+
   openLogin(): void {
     this.showLoginModal = true;
   }
@@ -315,7 +322,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     if (offer) {
       this.onSelectOffer(offer);
     } else {
-      this.toastr.info("Cette offre n'est plus disponible.", 'Offre introuvable');
+      this.toastr.info(
+        "Cette offre n'est plus disponible.",
+        'Offre introuvable',
+      );
     }
     // We're inside the offers subscription (fires outside Angular's zone, like
     // the other socket callbacks here), so the modal state change above needs an

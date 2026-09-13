@@ -17,3 +17,13 @@
 }
 
 /* Your custom styles below */
+
+// Bigger, easier-to-tap checkboxes everywhere (default browser size is too
+// small on phones). Sized in em so it scales with each checkbox's own
+// font-size; layouts using flex `gap` for spacing are unaffected since gap
+// doesn't depend on child size.
+input[type="checkbox"] {
+  width: 1.5em;
+  height: 1.5em;
+  cursor: pointer;
+}

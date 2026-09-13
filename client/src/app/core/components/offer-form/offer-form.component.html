@@ -87,7 +87,7 @@
       >
         <span>Configurer les champs communs des produits</span>
         <span class="global-fields-caret" aria-hidden="true">
-          {{ showGlobalFields ? '▲' : '▼' }}
+          {{ showGlobalFields ? "▲" : "▼" }}
         </span>
       </button>
 
@@ -113,7 +113,7 @@
 
       @if (hasGlobalFields) {
         <div class="global-fields-inputs">
-          @if (isGlobalField('unitType')) {
+          @if (isGlobalField("unitType")) {
             <label class="form-label">
               Type d'unité (commun)
               <select
@@ -128,7 +128,7 @@
               </select>
             </label>
           }
-          @if (isGlobalField('unitPrice')) {
+          @if (isGlobalField("unitPrice")) {
             <label class="form-label">
               Prix unitaire commun (€)
               <input
@@ -141,7 +141,7 @@
               />
             </label>
           }
-          @if (isGlobalField('totalQuantity')) {
+          @if (isGlobalField("totalQuantity")) {
             <label class="form-label form-label--full">
               Quantité disponible commune
               <input
@@ -160,11 +160,11 @@
               />
               <span>
                 Stock partagé : une seule réserve pour tous les produits (chaque
-                réservation la fait baisser, l'offre ferme à 0).
+                réservation la fait baisser, l'offre se bloque à 0).
               </span>
             </label>
           }
-          @if (isGlobalField('minimumOrder')) {
+          @if (isGlobalField("minimumOrder")) {
             <label class="form-label form-label--full">
               Commande min / max (commune)
               <div class="min-max-row">
@@ -236,7 +236,7 @@
                 />
               </label>
 
-              @if (!isGlobalField('unitType')) {
+              @if (!isGlobalField("unitType")) {
                 <label class="form-label form-label--third">
                   Type d'unité
                   <select
@@ -255,7 +255,7 @@
 
             @if (hasPerProductQuantityFields) {
               <div class="form-row form-row--triple">
-                @if (!isGlobalField('unitPrice')) {
+                @if (!isGlobalField("unitPrice")) {
                   <label class="form-label form-label--smallthird">
                     Prix unitaire (€)
                     <input
@@ -269,7 +269,7 @@
                   </label>
                 }
 
-                @if (!isGlobalField('totalQuantity')) {
+                @if (!isGlobalField("totalQuantity")) {
                   <label class="form-label form-label--third">
                     Quantité disponible
                     <input
@@ -282,7 +282,7 @@
                   </label>
                 }
 
-                @if (!isGlobalField('minimumOrder')) {
+                @if (!isGlobalField("minimumOrder")) {
                   <label class="form-label form-label--third">
                     Commande Min / Max
                     <div class="min-max-row">
@@ -351,6 +351,31 @@
           (change)="onWindowChange()"
         />
       </label>
+    </div>
+
+    <!-- Automatic closing -->
+    <div class="form-label form-label--full">
+      <label class="global-field-check">
+        <input
+          type="checkbox"
+          [checked]="autoCloseEnabled"
+          (change)="toggleAutoClose()"
+        />
+        <span>Fermer l'offre automatiquement</span>
+      </label>
+
+      @if (autoCloseEnabled) {
+        <label class="form-label form-label--full">
+          Date et heure de fermeture automatique
+          <input
+            type="datetime-local"
+            name="autoCloseAt"
+            [(ngModel)]="autoCloseLocal"
+            (change)="onAutoCloseChange()"
+            required
+          />
+        </label>
+      }
     </div>
 
     <!-- Error message -->

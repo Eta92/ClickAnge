@@ -16,6 +16,7 @@ export interface Offer {
   createdAt?: number;
   publishedAt?: number;
   closedAt?: number;
+  autoCloseAt?: number;
 }
 
 export interface Product extends ProductQuantity {

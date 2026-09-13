@@ -1,14 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
-import {
-  GlobalQuantities,
-  Offer,
-  OfferStatus,
-  Product,
-  ProductQuantity,
-  ProductUnit,
-  isTotalQuantityShared,
-} from '../models/offer.model';
+import { GlobalQuantities, Offer, OfferStatus, Product, ProductQuantity, ProductUnit, isTotalQuantityShared } from '../models/offer.model';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -26,16 +18,14 @@ export interface CreateOfferInput {
   name: string;
   description?: string;
   icon?: string;
-  // quantity fields the manager filled once for the whole offer; also mirrored
-  // onto every product below by the client, and defensively here
   globalQuantities?: GlobalQuantities;
   products: CreateOfferProductInput[];
   pickupDate: number;
   pickupWindowStart: number;
   pickupWindowEnd: number;
-  // when true, the offer is created directly in OPEN status instead of DRAFT
+  // epoch ms; when set, the offer auto-closes (and emails customers) once reached
+  autoCloseAt?: number | null;
   publish?: boolean;
-  // only meaningful with publish: also email an auto-generated announcement to subscribers
   notifySubscribers?: boolean;
 }
 
@@ -94,6 +84,13 @@ export class OfferService {
     return this.offerMap[uuid];
   }
 
+  public static getOffersDueForAutoClose(): Array<Offer> {
+    const now = Date.now();
+    return Object.values(this.offerMap).filter(
+      (offer) => offer.status === OfferStatus.OPEN && offer.autoCloseAt != null && offer.autoCloseAt <= now
+    );
+  }
+
   // ---- mutations ----
 
   public static async createOffer(io: SocketServer, data: CreateOfferInput): Promise<Offer> {
@@ -117,7 +114,6 @@ export class OfferService {
       name: data.name,
       description: data.description,
       icon: data.icon ?? undefined,
-      ...(globalQuantities ? { globalQuantities } : {}),
       products,
       pickupDate: data.pickupDate,
       pickupWindowStart: data.pickupWindowStart,
@@ -125,6 +121,13 @@ export class OfferService {
       status: data.publish ? OfferStatus.OPEN : OfferStatus.DRAFT,
       createdAt: Date.now(),
     };
+
+    if (globalQuantities) {
+      offer.globalQuantities = globalQuantities;
+    }
+    if (data.autoCloseAt) {
+      offer.autoCloseAt = data.autoCloseAt;
+    }
 
     if (data.publish) {
       offer.publishedAt = Date.now();
@@ -152,6 +155,11 @@ export class OfferService {
     offer.pickupWindowStart = data.pickupWindowStart ?? offer.pickupWindowStart;
     offer.pickupWindowEnd = data.pickupWindowEnd ?? offer.pickupWindowEnd;
     offer.status = data.status ?? offer.status;
+
+    // keep the field empty as long as there is no auto close
+    if (data.autoCloseAt !== undefined) {
+      offer.autoCloseAt = data.autoCloseAt ?? undefined;
+    }
 
     // Resolve which quantity fields are shared before rebuilding the products,
     // so their values win over whatever each product line carries.
@@ -197,10 +205,7 @@ export class OfferService {
     // remaining that bookings drew down.
     if (isTotalQuantityShared(offer)) {
       const total = offer.globalQuantities!.totalQuantity ?? 0;
-      const booked = offer.products.reduce(
-        (max, p) => Math.max(max, p.totalQuantity - p.remainingQuantity),
-        0
-      );
+      const booked = offer.products.reduce((max, p) => Math.max(max, p.totalQuantity - p.remainingQuantity), 0);
       const remaining = Math.max(0, total - booked);
       for (const product of offer.products) {
         product.totalQuantity = total;
@@ -226,11 +231,7 @@ export class OfferService {
   }
 
   // switches a DRAFT offer to OPEN and optionally emails subscribers an auto-generated announcement
-  public static async publishOffer(
-    io: SocketServer,
-    uuid: string,
-    notifySubscribers: boolean
-  ): Promise<Offer | null> {
+  public static async publishOffer(io: SocketServer, uuid: string, notifySubscribers: boolean): Promise<Offer | null> {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 

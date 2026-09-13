@@ -37,7 +37,9 @@
               <p class="summary-description">{{ offer.description }}</p>
             }
             <p class="summary-pickup">
-              Retrait : {{ offer.pickupDate | date: "d MMM, HH:mm" }}
+              Retrait le {{ offer.pickupDate | date: "d MMM" }} entre
+              {{ offer.pickupWindowStart | date: "HH:mm" }} et
+              {{ offer.pickupWindowEnd | date: "HH:mm" }}
             </p>
           </div>
         </div>
@@ -48,12 +50,15 @@
         <p class="shared-limits-note">
           @if (isTotalShared) {
             <span
-              >Stock partagé : {{ sharedStockCeiling }} article(s) au total pour
-              cette offre.</span
+              >Stock partagé : {{ sharedStockCeiling }} {{ getGlobalUnit }} au
+              total pour cette offre.</span
             >
           }
           @if (isMaximumShared) {
-            <span>Maximum {{ sharedMaximum }} article(s) par réservation.</span>
+            <span
+              >Maximum de {{ sharedMaximum }} {{ getGlobalUnit }} par
+              réservation.</span
+            >
           }
         </p>
       }
@@ -77,22 +82,29 @@
                   }
                 </span>
               </div>
-              @if (readonly) {
-                <span class="product-select-quantity product-select-quantity--readonly">
-                  {{ getQuantity(product) }}
-                </span>
-              } @else {
-                <input
-                  type="number"
-                  class="product-select-quantity"
-                  min="0"
-                  step="any"
-                  [max]="getMaxQuantity(product)"
-                  [ngModel]="getQuantity(product)"
-                  (ngModelChange)="setQuantity(product, $event)"
-                  (keydown)="onKeyDown($event)"
-                />
-              }
+              <div class="product-select-quantity-wrap">
+                @if (readonly) {
+                  <span
+                    class="product-select-quantity product-select-quantity--readonly"
+                  >
+                    {{ getQuantity(product) }}
+                  </span>
+                } @else {
+                  <input
+                    type="number"
+                    class="product-select-quantity"
+                    min="0"
+                    step="any"
+                    [max]="getMaxQuantity(product)"
+                    [ngModel]="getQuantity(product)"
+                    (ngModelChange)="setQuantity(product, $event)"
+                    (keydown)="onKeyDown($event)"
+                  />
+                }
+                <span class="product-select-unit">{{
+                  getUnitShortLabel(product.unitType, getQuantity(product))
+                }}</span>
+              </div>
             </div>
           }
         } @empty {

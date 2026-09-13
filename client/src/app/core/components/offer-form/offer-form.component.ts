@@ -204,6 +204,8 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   // time-only bindings (HH:mm)
   windowStartLocal = '';
   windowEndLocal = '';
+  // datetime-local binding (YYYY-MM-DDTHH:mm) for the auto-close field
+  autoCloseLocal = '';
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['offer'] && this.offer) {
@@ -219,6 +221,9 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       // Convert window times to HH:mm
       this.windowStartLocal = this.toTimeString(this.offer.pickupWindowStart);
       this.windowEndLocal = this.toTimeString(this.offer.pickupWindowEnd);
+      this.autoCloseLocal = this.offer.autoCloseAt
+        ? this.toDateTimeLocalString(this.offer.autoCloseAt)
+        : '';
     } else if (changes['offer'] && !this.offer) {
       // New offer — set defaults
       const now = new Date();
@@ -240,6 +245,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       this.pickupDateLocal = today;
       this.windowStartLocal = morning;
       this.windowEndLocal = evening;
+      this.autoCloseLocal = '';
     }
   }
 
@@ -405,6 +411,31 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     return `${dateStr}T${timeStr}`;
   }
 
+  // ---- automatic closing ----
+
+  /** True when the manager has enabled "close the offer automatically". */
+  get autoCloseEnabled(): boolean {
+    return this.formValue.autoCloseAt != null;
+  }
+
+  /** Checkbox toggle: seeds a default date-time when turning on, clears it when turning off. */
+  toggleAutoClose(): void {
+    if (this.autoCloseEnabled) {
+      delete this.formValue.autoCloseAt;
+      this.autoCloseLocal = '';
+      return;
+    }
+    const seed = this.formValue.pickupWindowEnd ?? Date.now() + 60 * 60 * 1000;
+    this.formValue.autoCloseAt = seed;
+    this.autoCloseLocal = this.toDateTimeLocalString(seed);
+  }
+
+  onAutoCloseChange(): void {
+    if (this.autoCloseLocal) {
+      this.formValue.autoCloseAt = new Date(this.autoCloseLocal).getTime();
+    }
+  }
+
   /** "Enregistrer comme brouillon" — creates a DRAFT offer (or updates an existing one). */
   submit(): void {
     if (!this.validateForm()) return;
@@ -476,6 +507,12 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       return false;
     }
 
+    this.onAutoCloseChange();
+    if (this.autoCloseEnabled && !this.formValue.autoCloseAt) {
+      this.errorMessage = 'La date de fermeture automatique est requise.';
+      return false;
+    }
+
     return true;
   }
 
@@ -504,6 +541,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       pickupDate: this.formValue.pickupDate!,
       pickupWindowStart: this.formValue.pickupWindowStart!,
       pickupWindowEnd: this.formValue.pickupWindowEnd!,
+      autoCloseAt: this.formValue.autoCloseAt ?? null,
     };
   }
 
@@ -536,6 +574,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         pickupDate: this.formValue.pickupDate!,
         pickupWindowStart: this.formValue.pickupWindowStart!,
         pickupWindowEnd: this.formValue.pickupWindowEnd!,
+        autoCloseAt: this.formValue.autoCloseAt ?? null,
       },
     });
 
@@ -759,5 +798,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`; // HH:mm
+  }
+
+  private toDateTimeLocalString(epochMs: number): string {
+    const d = new Date(epochMs);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
   }
 }

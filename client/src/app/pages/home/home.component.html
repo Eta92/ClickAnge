@@ -125,7 +125,9 @@
             <div class="offer-details">
               <div class="offer-description">{{ offer.description }}</div>
               <div class="offer-pickup">
-                Retrait : {{ offer.pickupDate | date: "d MMM, HH:mm" }}
+                Retrait le {{ offer.pickupDate | date: "d MMM" }} entre
+                {{ offer.pickupWindowStart | date: "HH:mm" }} et
+                {{ offer.pickupWindowEnd | date: "HH:mm" }}
               </div>
               <div class="offer-products-tiles">
                 @for (product of offer.products; track product.name) {
@@ -141,7 +143,8 @@
               </div>
               @if (hasSharedStock(offer)) {
                 <div class="offer-shared-stock">
-                  Stock partagé : {{ sharedStock(offer) }} au total
+                  Stock partagé de {{ sharedStock(offer) }}
+                  {{ getGlobalUnit(offer) }} au total
                 </div>
               }
             </div>

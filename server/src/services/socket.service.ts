@@ -7,6 +7,9 @@ import { CustomerService } from './customer.service';
 import { CreateOfferInput, OfferService } from './offer.service';
 import { MongoService } from './mongo.service';
 
+// How often to check for offers whose auto-close date has been reached.
+const AUTO_CLOSE_CHECK_INTERVAL_MS = 10_60_000;
+
 export class SocketService {
   public static io: SocketServer;
 
@@ -17,6 +20,9 @@ export class SocketService {
 
     await BookingService.init(this.io);
     await OfferService.init(this.io);
+
+    setInterval(() => this.checkAutoCloseOffers(), AUTO_CLOSE_CHECK_INTERVAL_MS);
+    this.checkAutoCloseOffers();
 
     this.io.sockets.on('connection', (socket: Socket) => {
       // ================================
@@ -87,15 +93,7 @@ export class SocketService {
 
       socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean }) => {
         try {
-          const offer = await OfferService.closeOffer(this.io, data.uuid);
-          if (offer) {
-            // Closing the offer locks in every active booking as CONFIRMED.
-            await BookingService.confirmActiveBookingsForOffer(offer.uuid);
-            if (data.notifyCustomers) {
-              const bookings = BookingService.getBookingsForOffer(data.uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
-              await CustomerService.notifyBookingConfirmed(offer, bookings);
-            }
-          }
+          await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers);
         } catch (err: any) {
           socket.emit('ToasterError', err.message);
         }
@@ -212,18 +210,15 @@ export class SocketService {
         }
       );
 
-      socket.on(
-        'updateBookingNote',
-        async (data: { bookingUuid: string; customerEmail: string; note?: string }) => {
-          try {
-            const booking = await BookingService.updateBookingNote(data.bookingUuid, data.customerEmail, data.note ?? '');
-            socket.emit('BookingCreated', booking);
-          } catch (err: any) {
-            console.error('Error updating booking note:', err);
-            socket.emit('ToasterError', err.message);
-          }
+      socket.on('updateBookingNote', async (data: { bookingUuid: string; customerEmail: string; note?: string }) => {
+        try {
+          const booking = await BookingService.updateBookingNote(data.bookingUuid, data.customerEmail, data.note ?? '');
+          socket.emit('BookingCreated', booking);
+        } catch (err: any) {
+          console.error('Error updating booking note:', err);
+          socket.emit('ToasterError', err.message);
         }
-      );
+      });
 
       // ================================
       // ==== CUSTOMER EMAIL VERIFICATION ====
@@ -270,5 +265,27 @@ export class SocketService {
         }
       });
     });
+  }
+
+  private static async closeOfferWithSideEffects(uuid: string, notifyCustomers: boolean): Promise<void> {
+    const offer = await OfferService.closeOffer(this.io, uuid);
+    if (!offer) return;
+
+    await BookingService.confirmActiveBookingsForOffer(offer.uuid);
+    if (notifyCustomers) {
+      const bookings = BookingService.getBookingsForOffer(uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
+      await CustomerService.notifyBookingConfirmed(offer, bookings);
+    }
+  }
+
+  private static async checkAutoCloseOffers(): Promise<void> {
+    for (const offer of OfferService.getOffersDueForAutoClose()) {
+      try {
+        console.log(`Auto-closing offer ${offer.uuid} (autoCloseAt reached)`);
+        await this.closeOfferWithSideEffects(offer.uuid, true);
+      } catch (err) {
+        console.error(`Failed to auto-close offer ${offer.uuid}:`, err);
+      }
+    }
   }
 }
