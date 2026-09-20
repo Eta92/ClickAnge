@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { Observable, Subject, Subscription, firstValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Booking, Purchase } from '../models/booking.model';
+import { Booking, PaymentMethod, Purchase } from '../models/booking.model';
 import { Offer, Product } from '../models/offer.model';
 import { CustomerProfile } from '../models/customer-profile.model';
 import { SocketService } from '../socket/socket.service';
@@ -26,6 +26,7 @@ export interface CreateBookingPayload {
   customerName?: string;
   offerId: string;
   purchases: Purchase[];
+  paymentMethod?: PaymentMethod;
   note?: string;
   bookingUuid?: string; // present for updates
 }

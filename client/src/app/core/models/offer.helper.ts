@@ -86,3 +86,21 @@ export function computeOrderTotal(
     return sum + (unitPrice ?? 0) * p.quantity;
   }, 0);
 }
+
+/**
+ * The account as it is stored, sent and copied: whatever spacing was typed or
+ * pasted is stripped, so the value stays a single unbroken reference.
+ */
+export function normalizeBankAccountId(raw?: string | null): string {
+  return (raw ?? '').replace(/\s+/g, '');
+}
+
+/**
+ * The same account split into groups of 4 for reading. Callers render the
+ * groups as separate elements set apart with a CSS gap — never joined by a
+ * space — so selecting the value on screen still copies one unbroken
+ * reference.
+ */
+export function bankAccountGroups(raw?: string | null): string[] {
+  return normalizeBankAccountId(raw).match(/.{1,4}/g) ?? [];
+}

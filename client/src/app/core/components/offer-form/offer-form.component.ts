@@ -19,6 +19,7 @@ import {
   Product,
   ProductUnit,
 } from '../../models/offer.model';
+import { normalizeBankAccountId } from '../../models/offer.helper';
 import { SocketService } from '../../socket/socket.service';
 
 // Available food icons from assets/icons/
@@ -236,6 +237,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         icon: undefined,
         globalQuantities: {},
         products: [this.createEmptyProduct()],
+        bankAccountId: '',
         pickupDate: now.getTime(),
         pickupWindowStart: new Date(today + 'T09:00').getTime(),
         pickupWindowEnd: new Date(today + 'T18:00').getTime(),
@@ -575,6 +577,8 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
           totalQuantity: r.totalQuantity,
         };
       }),
+      bankAccountId:
+        normalizeBankAccountId(this.formValue.bankAccountId) || undefined,
       pickupDate: this.formValue.pickupDate!,
       pickupWindowStart: this.formValue.pickupWindowStart!,
       pickupWindowEnd: this.formValue.pickupWindowEnd!,
@@ -608,6 +612,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
             totalQuantity: r.totalQuantity,
           };
         }),
+        bankAccountId: normalizeBankAccountId(this.formValue.bankAccountId),
         pickupDate: this.formValue.pickupDate!,
         pickupWindowStart: this.formValue.pickupWindowStart!,
         pickupWindowEnd: this.formValue.pickupWindowEnd!,

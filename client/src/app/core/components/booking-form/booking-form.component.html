@@ -37,7 +37,7 @@
               <p class="summary-description">{{ offer.description }}</p>
             }
             <p class="summary-pickup">
-              Retrait le {{ offer.pickupDate | date: "d MMM" }} entre
+              Retrait le {{ offer.pickupDate | date: "EEE d MMM" }} entre
               {{ offer.pickupWindowStart | date: "HH:mm" }} et
               {{ offer.pickupWindowEnd | date: "HH:mm" }}
             </p>
@@ -121,6 +121,103 @@
             <span class="promotion-badge">Prix promotionnel</span>
           }
         </p>
+      }
+
+      <!-- Payment method — wire is only offered when the offer carries an account -->
+      @if (showPaymentSection) {
+        <div class="payment-section">
+          <span class="payment-section-label">Mode de paiement</span>
+
+          <div
+            class="payment-toggle"
+            role="group"
+            aria-label="Mode de paiement"
+          >
+            <button
+              type="button"
+              class="payment-option"
+              [class.payment-option--active]="
+                paymentMethod === PaymentMethod.CASH
+              "
+              [attr.aria-pressed]="paymentMethod === PaymentMethod.CASH"
+              [disabled]="readonly"
+              (click)="setPaymentMethod(PaymentMethod.CASH)"
+            >
+              Espèces
+            </button>
+            <button
+              type="button"
+              class="payment-option"
+              [class.payment-option--active]="
+                paymentMethod === PaymentMethod.WIRE
+              "
+              [attr.aria-pressed]="paymentMethod === PaymentMethod.WIRE"
+              [disabled]="readonly || !wireAvailable"
+              (click)="setPaymentMethod(PaymentMethod.WIRE)"
+            >
+              Virement
+            </button>
+          </div>
+
+          @if (paymentMethod === PaymentMethod.WIRE) {
+            @if (bankAccountId) {
+              <!-- Grid: the label and the account take the first column on
+                   two lines, the copy button stands alongside them across
+                   both, and the hint runs underneath. -->
+              <div class="bank-details">
+                <span class="bank-details-label">Compte à créditer</span>
+                <!-- One element per group, spaced by CSS. Keep the groups
+                     free of any whitespace between them: a customer copying
+                     the number by hand must get it unbroken. -->
+                <code class="bank-account-id">
+                  @for (group of bankAccountGroups; track $index) {
+                    <span class="bank-account-group">{{ group }}</span>
+                  }
+                </code>
+                <button
+                  type="button"
+                  class="btn-copy"
+                  [class.btn-copy--copied]="bankCopied()"
+                  (click)="copyBankAccountId()"
+                >
+                  <svg
+                    class="btn-copy-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M4.5 3.5h11l4 4v13h-15z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linejoin="round"
+                    />
+                    <path d="M9 3.5h6v5H9z" fill="currentColor" />
+                    <path
+                      d="M7.5 13h9v7.5h-9z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span class="btn-copy-text">{{
+                    bankCopied() ? "Copié ✓" : "Copier"
+                  }}</span>
+                </button>
+                <p class="bank-details-hint">
+                  Indiquez votre nom et le nom de l'offre en référence du
+                  virement.
+                </p>
+              </div>
+            } @else {
+              <p class="bank-details-hint">
+                Le compte bancaire n'est plus renseigné pour cette offre.
+                Contactez le gestionnaire.
+              </p>
+            }
+          }
+        </div>
       }
 
       <!-- Note textarea — editable even in read-only mode -->

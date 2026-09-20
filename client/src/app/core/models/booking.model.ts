@@ -13,6 +13,12 @@ export interface Booking {
   customerPhone?: string;
   status: BookingStatus;
   purchases: Purchase[];
+  /**
+   * How the customer intends to pay. Wire is only offered when the offer
+   * carries a `bankAccountId`; bookings taken before this field existed have
+   * none and are treated as cash.
+   */
+  paymentMethod?: PaymentMethod;
   note?: string;
   createdAt: number;
   updatedAt?: number;
@@ -22,6 +28,11 @@ export interface Booking {
 export interface Purchase {
   name: string;
   quantity: number;
+}
+
+export enum PaymentMethod {
+  CASH = 'cash',
+  WIRE = 'wire',
 }
 
 export enum BookingStatus {

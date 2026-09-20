@@ -9,6 +9,9 @@ export interface Offer {
   // of per product (see GlobalQuantities).
   globalQuantities?: GlobalQuantities;
   products: Product[];
+  // IBAN / account reference the customer transfers to when they pick a wire
+  // payment. Absent means the offer is cash-only.
+  bankAccountId?: string;
   pickupDate: number; // epoch ms, day of pickup
   pickupWindowStart: number; // epoch ms, sart of pickup
   pickupWindowEnd: number; // epoch ms, end of pickup

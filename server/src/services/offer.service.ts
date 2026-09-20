@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { GlobalQuantities, Offer, OfferStatus, Product, ProductQuantity, ProductUnit } from '../models/offer.model';
-import { isTotalQuantityShared } from '../models/offer.helper';
+import { isTotalQuantityShared, normalizeBankAccountId } from '../models/offer.helper';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -21,6 +21,7 @@ export interface CreateOfferInput {
   icon?: string;
   globalQuantities?: GlobalQuantities;
   products: CreateOfferProductInput[];
+  bankAccountId?: string;
   pickupDate: number;
   pickupWindowStart: number;
   pickupWindowEnd: number;
@@ -118,6 +119,7 @@ export class OfferService {
       description: data.description,
       icon: data.icon ?? undefined,
       products,
+      bankAccountId: normalizeBankAccountId(data.bankAccountId) || undefined,
       pickupDate: data.pickupDate,
       pickupWindowStart: data.pickupWindowStart,
       pickupWindowEnd: data.pickupWindowEnd,
@@ -154,6 +156,8 @@ export class OfferService {
     offer.name = data.name ?? offer.name;
     offer.description = data.description ?? offer.description;
     if (data.icon !== undefined) offer.icon = data.icon;
+    // An emptied field clears the bank account, so the offer goes back to cash-only.
+    if (data.bankAccountId !== undefined) offer.bankAccountId = normalizeBankAccountId(data.bankAccountId) || undefined;
     offer.pickupDate = data.pickupDate ?? offer.pickupDate;
     offer.pickupWindowStart = data.pickupWindowStart ?? offer.pickupWindowStart;
     offer.pickupWindowEnd = data.pickupWindowEnd ?? offer.pickupWindowEnd;

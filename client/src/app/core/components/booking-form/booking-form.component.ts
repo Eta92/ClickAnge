@@ -6,15 +6,18 @@ import {
   OnDestroy,
   Output,
   SimpleChanges,
+  signal,
 } from '@angular/core';
-import { Booking, Purchase } from '../../models/booking.model';
+import { Booking, PaymentMethod, Purchase } from '../../models/booking.model';
 import { Offer, Product, ProductUnit } from '../../models/offer.model';
 import {
+  bankAccountGroups,
   computeOrderTotal,
   isMaximumOrderShared,
   isPromotionActive,
   isTotalQuantityShared,
   sharedMaximumOrder,
+  normalizeBankAccountId,
   sharedRemainingQuantity,
 } from '../../models/offer.helper';
 import { CustomerProfile } from '../../models/customer-profile.model';
@@ -39,8 +42,20 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
   @Output() saved = new EventEmitter<Booking>();
   @Output() cancelled = new EventEmitter<void>();
 
+  protected readonly PaymentMethod = PaymentMethod;
+
   /** Quantity selected per product, keyed by product name */
   quantities: Record<string, number> = {};
+  /** Cash unless the offer publishes a bank account and the customer picks wire. */
+  paymentMethod: PaymentMethod = PaymentMethod.CASH;
+  /**
+   * Short-lived feedback on the "copier" button next to the account number.
+   * A signal, not a field: it is set from the clipboard promise's callback,
+   * which the browser runs outside the Angular zone, so a plain field would
+   * only reach the view on the next event.
+   */
+  readonly bankCopied = signal(false);
+  private copiedTimer?: ReturnType<typeof setTimeout>;
   note = '';
   isSubmitting = false;
   errorMessage: string | null = null;
@@ -58,9 +73,17 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
           quantities[purchase.name] = purchase.quantity;
         }
         this.note = this.booking.note || '';
+        // Bookings taken before the offer had a bank account carry no method.
+        this.paymentMethod = this.booking.paymentMethod ?? PaymentMethod.CASH;
       } else {
         this.note = '';
+        this.paymentMethod = PaymentMethod.CASH;
       }
+      // The offer may have dropped its bank account since the booking was made.
+      if (this.paymentMethod === PaymentMethod.WIRE && !this.wireAvailable) {
+        this.paymentMethod = PaymentMethod.CASH;
+      }
+      this.flagCopied(false);
       this.quantities = quantities;
     }
   }
@@ -77,6 +100,99 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
 
   setQuantity(product: Product, value: number): void {
     this.quantities[product.name] = value;
+  }
+
+  // ---- payment ----
+
+  /**
+   * The account customers transfer to — unspaced, as stored and as copied — or
+   * null when the offer is cash-only.
+   */
+  get bankAccountId(): string | null {
+    return normalizeBankAccountId(this.offer?.bankAccountId) || null;
+  }
+
+  /**
+   * The same account cut into groups of 4. The template renders one element
+   * per group and the gap comes from CSS, so the text a customer selects by
+   * hand is still the bare account number.
+   */
+  get bankAccountGroups(): string[] {
+    return bankAccountGroups(this.bankAccountId);
+  }
+
+  /** Wire is only offered once the manager filled a bank account on the offer. */
+  get wireAvailable(): boolean {
+    return this.bankAccountId !== null;
+  }
+
+  /**
+   * Hidden for a cash-only offer, but still shown for an existing wire booking
+   * whose offer has since dropped its account, so the choice stays visible.
+   */
+  get showPaymentSection(): boolean {
+    return this.wireAvailable || this.paymentMethod === PaymentMethod.WIRE;
+  }
+
+  setPaymentMethod(method: PaymentMethod): void {
+    if (this.readonly) return;
+    if (method === PaymentMethod.WIRE && !this.wireAvailable) return;
+    this.paymentMethod = method;
+    this.flagCopied(false);
+  }
+
+  /**
+   * `navigator.clipboard` is missing outside a secure context (the app opened
+   * over plain http on a LAN address) and `writeText` rejects when the browser
+   * says the document isn't focused — which is what made the first click look
+   * dead. Both cases fall back to a selection copy.
+   */
+  copyBankAccountId(): void {
+    const account = this.bankAccountId;
+    if (!account) return;
+
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      this.flagCopied(this.copyViaSelection(account));
+      return;
+    }
+
+    clipboard.writeText(account).then(
+      () => this.flagCopied(true),
+      (err) => {
+        console.warn('Clipboard write refused, falling back:', err);
+        this.flagCopied(this.copyViaSelection(account));
+      },
+    );
+  }
+
+  /** Copies through a throwaway off-screen field, the pre-clipboard-API way. */
+  private copyViaSelection(account: string): boolean {
+    const field = document.createElement('textarea');
+    field.value = account;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.top = '0';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (err) {
+      console.warn('Fallback copy failed:', err);
+    }
+    field.remove();
+    return copied;
+  }
+
+  /** Shows the confirmation for a couple of seconds, restarting the countdown. */
+  private flagCopied(copied: boolean): void {
+    this.bankCopied.set(copied);
+    if (this.copiedTimer) clearTimeout(this.copiedTimer);
+    if (copied) {
+      this.copiedTimer = setTimeout(() => this.bankCopied.set(false), 2000);
+    }
   }
 
   // ---- shared-limit helpers (offer-wide max / stock pool) ----
@@ -214,6 +330,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       customerName: profile.name || undefined,
       offerId: this.offer.uuid,
       purchases,
+      paymentMethod: this.paymentMethod,
       note: this.note || undefined,
     };
 
@@ -302,6 +419,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.submitSub?.unsubscribe();
+    if (this.copiedTimer) clearTimeout(this.copiedTimer);
   }
 
   constructor(private bookingService: BookingService) {}

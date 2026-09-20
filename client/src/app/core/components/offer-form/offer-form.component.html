@@ -346,6 +346,21 @@
       </button>
     </div>
 
+    <!-- Bank account for wire transfers -->
+    <label class="form-label form-label--full">
+      Compte bancaire (virement)
+      <input
+        type="text"
+        name="bankAccountId"
+        [(ngModel)]="formValue.bankAccountId"
+        placeholder="Ex: FR76 3000 1007 9412 3456 7890 185"
+      />
+      <span class="global-fields-hint">
+        Renseignez un IBAN pour proposer le paiement par virement aux clients.
+        Laissez vide pour n'accepter que les espèces.
+      </span>
+    </label>
+
     <!-- Pickup Date -->
     <label class="form-label form-label--full">
       Date de retrait

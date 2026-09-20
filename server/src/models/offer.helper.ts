@@ -35,3 +35,11 @@ export function isPromotionActive(offer: OfferGlobals): boolean {
   const g = offer.globalQuantities;
   return isMaximumOrderShared(offer) && g?.promotionEnabled === true && g.promotionPrice != null;
 }
+
+/**
+ * The account as it is stored, sent and copied: whatever spacing was typed or
+ * pasted is stripped, so the value stays a single unbroken reference.
+ */
+export function normalizeBankAccountId(raw?: string | null): string {
+  return (raw ?? '').replace(/\s+/g, '');
+}

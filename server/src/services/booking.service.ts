@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
-import { Booking, BookingStatus, Purchase } from '../models/booking.model';
+import { Booking, BookingStatus, PaymentMethod, Purchase } from '../models/booking.model';
 import { Offer, OfferStatus } from '../models/offer.model';
 import { isMaximumOrderShared, isTotalQuantityShared } from '../models/offer.helper';
 import { MongoService } from './mongo.service';
@@ -71,6 +71,14 @@ export class BookingService {
     }
   }
 
+  /**
+   * A wire transfer only makes sense when the manager published an account to
+   * transfer to, so anything else — including an unset method — lands on cash.
+   */
+  private static resolvePaymentMethod(offer: Offer, paymentMethod?: PaymentMethod): PaymentMethod {
+    return paymentMethod === PaymentMethod.WIRE && offer.bankAccountId ? PaymentMethod.WIRE : PaymentMethod.CASH;
+  }
+
   /** Applies (consume=1) or reverses (restore=-1) purchases against offer availability */
   private static applyPurchases(offer: Offer, purchases: Array<Purchase>, sign: 1 | -1): void {
     if (isTotalQuantityShared(offer)) {
@@ -107,7 +115,8 @@ export class BookingService {
     customerName: string | undefined,
     offerId: string,
     purchases: Array<Purchase>,
-    note?: string
+    note?: string,
+    paymentMethod?: PaymentMethod
   ): Promise<Booking> {
     if (!this.bookingInit) {
       throw new Error('Booking service not initialized');
@@ -132,6 +141,7 @@ export class BookingService {
       customerName,
       purchases,
       status: BookingStatus.PENDING,
+      paymentMethod: this.resolvePaymentMethod(offer, paymentMethod),
       note,
       createdAt: Date.now(),
       confirmedAt: undefined,
@@ -149,7 +159,13 @@ export class BookingService {
     return booking;
   }
 
-  public static async updateBooking(uuid: string, customerEmail: string, purchases: Array<Purchase>, note?: string): Promise<Booking> {
+  public static async updateBooking(
+    uuid: string,
+    customerEmail: string,
+    purchases: Array<Purchase>,
+    note?: string,
+    paymentMethod?: PaymentMethod
+  ): Promise<Booking> {
     const booking = this.bookingMap[uuid];
     if (!booking) throw new Error('Booking not found');
     if (booking.customerEmail !== customerEmail || booking.status === BookingStatus.CANCELLED) {
@@ -173,6 +189,7 @@ export class BookingService {
     this.applyPurchases(offer, purchases, 1);
 
     booking.purchases = purchases;
+    booking.paymentMethod = this.resolvePaymentMethod(offer, paymentMethod ?? booking.paymentMethod);
     booking.note = note ?? booking.note;
     booking.updatedAt = Date.now();
 

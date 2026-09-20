@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Socket, Server as SocketServer } from 'socket.io';
-import { BookingStatus } from '../models/booking.model';
+import { BookingStatus, PaymentMethod } from '../models/booking.model';
 import { OfferStatus } from '../models/offer.model';
 import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
@@ -157,6 +157,7 @@ export class SocketService {
           offerId: string;
           purchases: Array<{ name: string; quantity: number }>;
           note?: string;
+          paymentMethod?: PaymentMethod;
         }) => {
           console.log('Received createBooking request:', data);
           try {
@@ -165,7 +166,8 @@ export class SocketService {
               data.customerName,
               data.offerId,
               data.purchases,
-              data.note
+              data.note,
+              data.paymentMethod
             );
             socket.emit('BookingCreated', booking);
           } catch (err: any) {
@@ -199,9 +201,16 @@ export class SocketService {
           customerEmail: string;
           purchases: Array<{ name: string; quantity: number }>;
           note?: string;
+          paymentMethod?: PaymentMethod;
         }) => {
           try {
-            const booking = await BookingService.updateBooking(data.bookingUuid, data.customerEmail, data.purchases, data.note);
+            const booking = await BookingService.updateBooking(
+              data.bookingUuid,
+              data.customerEmail,
+              data.purchases,
+              data.note,
+              data.paymentMethod
+            );
             socket.emit('BookingCreated', booking);
           } catch (err: any) {
             console.error('Error updating booking:', err);
