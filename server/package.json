@@ -6,6 +6,7 @@
   "scripts": {
     "debug": "nodemon --exec \"node --inspect=0.0.0.0:9229 --require ts-node/register app.ts\"",
     "start": "nodemon app.ts",
+    "migrate:members": "ts-node scripts/migrateMembers.ts",
     "export": "mongoexport --host=\"localhost\" --port=27017 --db=HIDDEN --collection=players --out=players.json"
   },
   "nodemonConfig": {

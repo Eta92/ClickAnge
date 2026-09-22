@@ -11,14 +11,18 @@
     </div>
   </div>
 
-  <!-- User avatar / login trigger -->
-  @if (!isAuthenticated) {
-    <button class="btn-login" (click)="openLogin()">Connexion</button>
-  } @else {
-    <div class="user-avatar" (click)="openEditProfile()">
-      <span>{{ customerName.charAt(0).toUpperCase() }}</span>
-    </div>
-  }
+  <div class="header-actions">
+    @if (isManager) {
+      <button class="btn-members" routerLink="/members">Membres</button>
+    }
+    @if (!isAuthenticated) {
+      <button class="btn-login" (click)="openLogin()">Connexion</button>
+    } @else {
+      <div class="user-avatar" (click)="openEditProfile()">
+        <span>{{ customerName.charAt(0).toUpperCase() }}</span>
+      </div>
+    }
+  </div>
 </header>
 
 <!-- Splash screen overlay -->

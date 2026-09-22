@@ -1,9 +1,13 @@
 import { Server as HttpServer } from 'http';
 import { Socket, Server as SocketServer } from 'socket.io';
 import { BookingStatus, PaymentMethod } from '../models/booking.model';
+import { Member, Role } from '../models/customer.model';
+import { parseRole, toMember } from '../models/role.helper';
 import { OfferStatus } from '../models/offer.model';
+import { attachRole, requiredRole, socketHasRole } from '../helpers/socket-auth.helper';
 import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
+import { MemberService } from './member.service';
 import { CreateOfferInput, OfferService } from './offer.service';
 import { MongoService } from './mongo.service';
 
@@ -24,6 +28,8 @@ export class SocketService {
     setInterval(() => this.checkAutoCloseOffers(), AUTO_CLOSE_CHECK_INTERVAL_MS);
     this.checkAutoCloseOffers();
 
+    this.io.use(attachRole);
+
     this.io.sockets.on('connection', (socket: Socket) => {
       // ================================
       // ==== CLIENT-SERVER EXCHANGE ====
@@ -42,20 +48,35 @@ export class SocketService {
         socket.emit('pong');
       });
 
+      socket.on('getProfile', async () => {
+        if (!socket.data.email) {
+          socket.emit('GetProfile', null);
+          return;
+        }
+        const customer = await MongoService.getCustomerByEmail(socket.data.email);
+        socket.emit('GetProfile', customer ? toMember(customer) : null);
+      });
+
       // ================================
       // ==== OFFERS ====
       // ================================
       socket.on('getOpenOffers', () => {
+        // Published offers are public — visitors browse before signing in.
         socket.emit('GetOpenOffers', OfferService.getOpenOffers());
       });
 
       socket.on('getAllOffers', () => {
-        socket.emit('GetAllOffers', OfferService.getAllOffers());
+        // Includes drafts, so this is the manager's list only.
+        if (requiredRole(Role.MANAGER, socket)) {
+          socket.emit('GetAllOffers', OfferService.getAllOffers());
+        }
       });
 
       socket.on('getOffer', (uuid: string) => {
         const offer = OfferService.getOffer(uuid);
-        if (!offer) {
+        // A draft is not published yet, so it stays indistinguishable from an
+        // unknown offer for anyone but a manager.
+        if (!offer || (offer.status === OfferStatus.DRAFT && !socketHasRole(socket, Role.MANAGER))) {
           socket.emit('ToasterError', 'Offer not found');
           return;
         }
@@ -63,39 +84,49 @@ export class SocketService {
       });
 
       socket.on('createOffer', async (offerData: CreateOfferInput) => {
-        try {
-          const offer = await OfferService.createOffer(this.io, offerData);
-          socket.emit('OfferCreated', offer);
-        } catch (err: any) {
-          socket.emit('ToasterError', err.message);
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const offer = await OfferService.createOffer(this.io, offerData);
+            socket.emit('OfferCreated', offer);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
       socket.on('updateOffer', async (data: { uuid: string; offerData: any }) => {
-        try {
-          await OfferService.updateOffer(this.io, data.uuid, data.offerData);
-        } catch (err: any) {
-          socket.emit('ToasterError', err.message);
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            await OfferService.updateOffer(this.io, data.uuid, data.offerData);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
       socket.on('updateOfferStatus', async (data: { uuid: string; status: OfferStatus }) => {
-        await OfferService.updateOfferStatus(this.io, data.uuid, data.status);
+        if (requiredRole(Role.MANAGER, socket)) {
+          await OfferService.updateOfferStatus(this.io, data.uuid, data.status);
+        }
       });
 
       socket.on('publishOffer', async (data: { uuid: string; notifySubscribers: boolean }) => {
-        try {
-          await OfferService.publishOffer(this.io, data.uuid, data.notifySubscribers);
-        } catch (err: any) {
-          socket.emit('ToasterError', err.message);
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            await OfferService.publishOffer(this.io, data.uuid, data.notifySubscribers);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
       socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean }) => {
-        try {
-          await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers);
-        } catch (err: any) {
-          socket.emit('ToasterError', err.message);
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
@@ -103,94 +134,80 @@ export class SocketService {
       // ==== BOOKINGS ====
       // ================================
       socket.on('getBookingsForOffer', async (offerId: string) => {
-        const bookings = BookingService.getBookingsForOffer(offerId);
-        // Enrich with the customer's phone number for the manager's overview / export.
-        const emails = [...new Set(bookings.map((b) => b.customerEmail))];
-        const customers = await MongoService.getCustomersByEmails(emails);
-        const phoneByEmail = new Map(customers.map((c) => [c.email, c.phone]));
-        const enriched = bookings.map((b) => ({
-          ...b,
-          customerPhone: phoneByEmail.get(b.customerEmail),
-        }));
-        socket.emit('GetBookingsForOffer', enriched);
+        // Carries every customer's name, email and phone for that offer.
+        if (requiredRole(Role.MANAGER, socket)) {
+          const bookings = BookingService.getBookingsForOffer(offerId);
+          // Enrich with the customer's phone number for the manager's overview / export.
+          const emails = [...new Set(bookings.map((b) => b.customerEmail))];
+          const customers = await MongoService.getCustomersByEmails(emails);
+          const phoneByEmail = new Map(customers.map((c) => [c.email, c.phone]));
+          const enriched = bookings.map((b) => ({
+            ...b,
+            customerPhone: phoneByEmail.get(b.customerEmail),
+          }));
+          socket.emit('GetBookingsForOffer', enriched);
+        }
       });
 
-      socket.on('getCustomerProfile', async (customerEmail: string) => {
-        if (!customerEmail) {
-          socket.emit('ToasterError', 'Not authenticated');
-          return;
+      socket.on('getBookingsForCustomer', async () => {
+        if (requiredRole(Role.USER, socket)) {
+          const bookings = await BookingService.getBookingsByCustomerEmail(socket.data.email);
+          // Attach the referenced offer so the customer can still see what they
+          // ordered once the offer is closed and no longer in the open list.
+          const enriched = bookings.map((b) => ({
+            ...b,
+            offer: OfferService.getOffer(b.offerId) ?? undefined,
+          }));
+          socket.emit('GetBookingsForCustomer', enriched);
         }
-        const customer = await MongoService.getCustomerByEmail(customerEmail);
-        if (!customer || !customer.emailVerified) {
-          socket.emit('ToasterError', 'Customer not found or not verified');
-          return;
-        }
-        const profile: any = {
-          uuid: customer.uuid,
-          email: customer.email,
-          name: customer.name,
-          emailVerified: true,
-        };
-        socket.emit('GetCustomerProfile', profile);
-      });
-
-      socket.on('getBookingsForCustomer', async (customerEmail: string) => {
-        if (!customerEmail) {
-          socket.emit('ToasterError', 'Not authenticated');
-          return;
-        }
-        const bookings = await BookingService.getBookingsByCustomerEmail(customerEmail);
-        // Attach the referenced offer so the customer can still see what they
-        // ordered once the offer is closed and no longer in the open list.
-        const enriched = bookings.map((b) => ({
-          ...b,
-          offer: OfferService.getOffer(b.offerId) ?? undefined,
-        }));
-        socket.emit('GetBookingsForCustomer', enriched);
       });
 
       socket.on(
         'createBooking',
         async (data: {
-          customerEmail: string;
           customerName?: string;
           offerId: string;
           purchases: Array<{ name: string; quantity: number }>;
           note?: string;
           paymentMethod?: PaymentMethod;
         }) => {
-          console.log('Received createBooking request:', data);
-          try {
-            const booking = await BookingService.createBooking(
-              data.customerEmail,
-              data.customerName,
-              data.offerId,
-              data.purchases,
-              data.note,
-              data.paymentMethod
-            );
-            socket.emit('BookingCreated', booking);
-          } catch (err: any) {
-            console.error('Error creating booking:', err);
-            console.error('Offer ID received:', data.offerId);
-            socket.emit('ToasterError', err.message);
+          if (requiredRole(Role.USER, socket)) {
+            try {
+              const booking = await BookingService.createBooking(
+                socket.data.email,
+                data.customerName,
+                data.offerId,
+                data.purchases,
+                data.note,
+                data.paymentMethod
+              );
+              socket.emit('BookingCreated', booking);
+            } catch (err: any) {
+              console.error('Error creating booking:', err);
+              console.error('Offer ID received:', data.offerId);
+              socket.emit('ToasterError', err.message);
+            }
           }
         }
       );
 
       socket.on('cancelBooking', async (uuid: string) => {
-        await BookingService.cancelBooking(uuid);
+        if (requiredRole(Role.MANAGER, socket)) {
+          await BookingService.cancelBooking(uuid);
+        }
       });
 
       socket.on('updateBookingStatus', async (data: { uuid: string; status: number }) => {
-        try {
-          const booking = await BookingService.updateBookingStatus(data.uuid, data.status);
-          if (booking) {
-            socket.emit('BookingStatusChanged', booking);
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const booking = await BookingService.updateBookingStatus(data.uuid, data.status);
+            if (booking) {
+              socket.emit('BookingStatusChanged', booking);
+            }
+          } catch (err: any) {
+            console.error('Error updating booking status:', err);
+            socket.emit('ToasterError', err.message);
           }
-        } catch (err: any) {
-          console.error('Error updating booking status:', err);
-          socket.emit('ToasterError', err.message);
         }
       });
 
@@ -198,40 +215,47 @@ export class SocketService {
         'updateBooking',
         async (data: {
           bookingUuid: string;
-          customerEmail: string;
           purchases: Array<{ name: string; quantity: number }>;
           note?: string;
           paymentMethod?: PaymentMethod;
         }) => {
-          try {
-            const booking = await BookingService.updateBooking(
-              data.bookingUuid,
-              data.customerEmail,
-              data.purchases,
-              data.note,
-              data.paymentMethod
-            );
-            socket.emit('BookingCreated', booking);
-          } catch (err: any) {
-            console.error('Error updating booking:', err);
-            socket.emit('ToasterError', err.message);
+          if (requiredRole(Role.USER, socket)) {
+            try {
+              // BookingService checks the booking belongs to this address, so the
+              // socket's identity doubles as the ownership check.
+              const booking = await BookingService.updateBooking(
+                data.bookingUuid,
+                socket.data.email,
+                data.purchases,
+                data.note,
+                data.paymentMethod
+              );
+              socket.emit('BookingCreated', booking);
+            } catch (err: any) {
+              console.error('Error updating booking:', err);
+              socket.emit('ToasterError', err.message);
+            }
           }
         }
       );
 
-      socket.on('updateBookingNote', async (data: { bookingUuid: string; customerEmail: string; note?: string }) => {
-        try {
-          const booking = await BookingService.updateBookingNote(data.bookingUuid, data.customerEmail, data.note ?? '');
-          socket.emit('BookingCreated', booking);
-        } catch (err: any) {
-          console.error('Error updating booking note:', err);
-          socket.emit('ToasterError', err.message);
+      socket.on('updateBookingNote', async (data: { bookingUuid: string; note?: string }) => {
+        if (requiredRole(Role.USER, socket)) {
+          try {
+            const booking = await BookingService.updateBookingNote(data.bookingUuid, socket.data.email, data.note ?? '');
+            socket.emit('BookingCreated', booking);
+          } catch (err: any) {
+            console.error('Error updating booking note:', err);
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
       // ================================
       // ==== CUSTOMER EMAIL VERIFICATION ====
       // ================================
+      // The two entry points that must stay open: they are how a socket comes to
+      // have a role in the first place.
       socket.on('requestEmailVerification', async (data: { email: string; name?: string }) => {
         try {
           console.log(`Requesting email verification for ${data.email}`);
@@ -244,7 +268,7 @@ export class SocketService {
 
       socket.on('confirmEmailVerification', async (data: { email: string; code: string }) => {
         try {
-          console.log(`Confirming email verification for ${data.email} with code ${data.code}`);
+          console.log(`Confirming email verification for ${data.email}`);
           const profile = await CustomerService.confirmVerificationCode(data.email, data.code);
           socket.emit('EmailVerificationConfirmed', profile);
         } catch (err: any) {
@@ -252,19 +276,23 @@ export class SocketService {
         }
       });
 
-      socket.on('updateCustomerProfile', async (data: { email: string; name?: string; phone?: string; isSubscribed?: boolean }) => {
-        try {
-          const updated = await CustomerService.updateProfile(data.email, {
-            name: data.name,
-            phone: data.phone,
-            isSubscribed: data.isSubscribed,
-          });
-          socket.emit('CustomerProfileUpdated', updated);
-        } catch (err: any) {
-          socket.emit('ToasterError', err.message);
+      socket.on('updateCustomerProfile', async (data: { name?: string; phone?: string; isSubscribed?: boolean }) => {
+        if (requiredRole(Role.USER, socket)) {
+          try {
+            const updated = await CustomerService.updateProfile(socket.data.email, {
+              name: data.name,
+              phone: data.phone,
+              isSubscribed: data.isSubscribed,
+            });
+            socket.emit('CustomerProfileUpdated', updated);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
         }
       });
 
+      // Reached from a link in an email by someone who may not be signed in —
+      // the unguessable resignation code is the credential here.
       socket.on('unsubscribeCustomer', async (data: { resignationCode: string }) => {
         try {
           const customer = await CustomerService.unsubscribeByCode(data.resignationCode);
@@ -273,7 +301,63 @@ export class SocketService {
           socket.emit('ToasterError', err.message);
         }
       });
+
+      // ================================
+      // ==== MEMBERS (MANAGER ONLY) ====
+      // ================================
+      socket.on('getMembers', async () => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          socket.emit('GetMembers', await MemberService.listMembers());
+        }
+      });
+
+      socket.on('addMember', async (data: { email: string; name?: string }) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const member = await MemberService.addMember(data.email, data.name);
+            socket.emit('MemberAdded', member);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      socket.on('addMembers', async (data: { raw: string }) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const result = await MemberService.addMembers(data.raw);
+            socket.emit('MembersAdded', result);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      socket.on('promoteMember', async (data: { email: string; role: Role }) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const role = parseRole(data?.role);
+            if (!role) {
+              throw new Error('Rôle inconnu');
+            }
+            const member = await MemberService.promote(data.email, role);
+            socket.emit('MemberPromoted', member);
+            this.pushRoleChange(member);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
     });
+  }
+
+  private static pushRoleChange(member: Member): void {
+    for (const client of this.io.sockets.sockets.values()) {
+      if (client.data.email === member.email) {
+        client.data.role = member.role;
+        client.emit('ProfileRoleChanged', member);
+      }
+    }
   }
 
   private static async closeOfferWithSideEffects(uuid: string, notifyCustomers: boolean): Promise<void> {

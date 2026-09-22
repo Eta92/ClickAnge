@@ -4,10 +4,12 @@ import {
   OnDestroy,
   AfterViewInit,
   ChangeDetectorRef,
+  effect,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { CustomerProfile } from '../../core/models/customer-profile.model';
+import { Member, Role } from '../../core/models/customer.model';
 import { Offer, OfferStatus, ProductUnit } from '../../core/models/offer.model';
 import {
   isTotalQuantityShared,
@@ -17,8 +19,6 @@ import { LoginService } from '../../core/auth/login.service';
 import { BookingService } from '../../core/services/booking.service';
 import { ToastrService } from 'ngx-toastr';
 import { CreateOfferChoice } from '../../core/components/create-offer-choice/create-offer-choice.component';
-
-const CUSTOMER_STORAGE_KEY = 'clickange_user';
 
 @Component({
   standalone: false,
@@ -39,8 +39,12 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   // Login modal state
   showLoginModal = false;
 
-  // Customer profile from localStorage
-  customerProfile: CustomerProfile | null = null;
+  /** Signed-in profile — owned by LoginService so a server-side role change shows up here too. */
+  get customerProfile(): CustomerProfile | null {
+    return this.loginService.getStoredProfile();
+  }
+
+  private previousRole: Role | null = null;
 
   // embedded booking-form state
   showBookingForm = false;
@@ -68,7 +72,18 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private bookingService: BookingService,
     private toastr: ToastrService,
-  ) {}
+  ) {
+    // A role that changed server-side (a promotion, or the members migration)
+    // swaps which offers this user may see, so reload the list when it moves.
+    effect(() => {
+      const role = this.loginService.role();
+      const previous = this.previousRole;
+      this.previousRole = role;
+      if (previous !== null && previous !== role) {
+        this.loadOffers();
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
     // Only show splash on first load of the app (not internal navigation)
@@ -102,16 +117,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Load customer profile from localStorage (login is a modal, no redirect)
-    const storedProfile = localStorage.getItem(CUSTOMER_STORAGE_KEY);
-    if (storedProfile) {
-      this.customerProfile = JSON.parse(storedProfile);
-    }
-
     // Load previous bookings for authenticated customer
     if (this.customerProfile?.email) {
       this.bookingService
-        .getBookingsByCustomerEmail(this.customerProfile.email)
+        .getMyBookings()
         .subscribe({
           next: (bookings) => {
             this.bookingService.bookings.set(bookings);
@@ -273,9 +282,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
   closeLogin(): void {
     // Check if user just logged in
-    const storedProfile = localStorage.getItem(CUSTOMER_STORAGE_KEY);
-    if (storedProfile && this._pendingOfferForAuth) {
-      this.customerProfile = JSON.parse(storedProfile);
+    if (this.isAuthenticated && this._pendingOfferForAuth) {
       this.bookingFormOffer = this._pendingOfferForAuth;
       this.bookingFormBooking = null;
       this.bookingFormReadonly = false;
@@ -290,9 +297,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.showEditProfile = true;
   }
 
-  onProfileSaved(profile: CustomerProfile): void {
-    this.customerProfile = profile;
-    localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(profile));
+  onProfileSaved(member: Member): void {
+    // Merge rather than replace — the update response carries no uuid.
+    this.loginService.mergeServerProfile(member);
     this.showEditProfile = false;
   }
 
@@ -378,7 +385,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     // Reload bookings so updatedAt / status reflect the latest change
     if (this.customerProfile?.email) {
       this.bookingService
-        .getBookingsByCustomerEmail(this.customerProfile.email)
+        .getMyBookings()
         .subscribe({
           next: (bookings) => this.bookingService.bookings.set(bookings),
           error: (err) => console.error('Failed to reload bookings:', err),

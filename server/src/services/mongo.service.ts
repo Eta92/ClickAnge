@@ -1,6 +1,6 @@
 import { Collection, Db, MongoClient } from 'mongodb';
 import { Booking } from '../models/booking.model';
-import { Customer } from '../models/customer.model';
+import { Customer, Role } from '../models/customer.model';
 import { Offer } from '../models/offer.model';
 import { SyncHelper } from '../helpers/sync.helper';
 
@@ -152,6 +152,14 @@ export class MongoService {
     return await this.customerCollection.find({ email: { $in: emails } }).toArray();
   }
 
+  public static async getCustomerByUuid(uuid: string): Promise<Customer | null> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return null;
+    }
+    return await this.customerCollection.findOne({ uuid });
+  }
+
   public static async getCustomerByResignationCode(resignationCode: string): Promise<Customer | null> {
     if (!this.mongoInit) {
       console.log('MongoDB not initialized');
@@ -194,6 +202,28 @@ export class MongoService {
       );
     } catch (err) {
       console.log('Error confirming customer email:', err);
+    }
+  }
+
+  // every customer record, newest first — backs the manager's members page
+  public static async getAllCustomers(): Promise<Array<Customer>> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return [];
+    }
+    return await this.customerCollection.find({}).sort({ createdAt: -1 }).toArray();
+  }
+
+  // changes a customer's access level without touching the rest of the document
+  public static async setCustomerRole(email: string, role: Role): Promise<void> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return;
+    }
+    try {
+      await this.customerCollection.updateOne({ email }, { $set: { role } });
+    } catch (err) {
+      console.log('Error updating customer role:', err);
     }
   }
 }

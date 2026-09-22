@@ -130,7 +130,10 @@ export class BookingService {
     this._setState({ isSubmitting: true, errorMessage: null });
 
     const event = payload.bookingUuid ? 'updateBooking' : 'createBooking';
-    this._socket.emit(event, payload);
+    // The server takes the customer from the socket's identity, so the email is
+    // stripped here rather than sent and ignored.
+    const { customerEmail, ...wire } = payload;
+    this._socket.emit(event, wire);
 
     // Listen directly on the socket (same pattern as original component)
     return new Observable<Booking>((subscriber) => {
@@ -312,11 +315,7 @@ export class BookingService {
    * Update only a booking's note (customer action). Stays available after the
    * offer closes, unlike a full booking edit.
    */
-  updateBookingNote(
-    bookingUuid: string,
-    customerEmail: string,
-    note: string,
-  ): Observable<Booking> {
+  updateBookingNote(bookingUuid: string, note: string): Observable<Booking> {
     return new Observable<Booking>((subscriber) => {
       const timeoutSub = setTimeout(() => {
         if (!subscriber.closed) {
@@ -324,11 +323,7 @@ export class BookingService {
         }
       }, 5000);
 
-      this._socket.emit('updateBookingNote', {
-        bookingUuid,
-        customerEmail,
-        note,
-      });
+      this._socket.emit('updateBookingNote', { bookingUuid, note });
 
       const sub = this._socket
         .on<Booking>('BookingCreated')
@@ -376,10 +371,8 @@ export class BookingService {
     });
   }
 
-  /** Fetch all bookings for the current customer */
-  getBookingsByCustomerEmail(
-    customerEmail: string,
-  ): Observable<Array<Booking>> {
+  /** Fetch the signed-in customer's own bookings — the socket says who that is. */
+  getMyBookings(): Observable<Array<Booking>> {
     return new Observable<Array<Booking>>((subscriber) => {
       const timeoutSub = setTimeout(() => {
         if (!subscriber.closed) {
@@ -387,7 +380,7 @@ export class BookingService {
         }
       }, 5000);
 
-      this._socket.emit('getBookingsForCustomer', customerEmail);
+      this._socket.emit('getBookingsForCustomer');
 
       const handler = (data: Array<Booking>) => {
         clearTimeout(timeoutSub);

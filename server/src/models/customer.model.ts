@@ -1,3 +1,10 @@
+export enum Role {
+  MEMBER = 'MEMBER',
+  USER = 'USER',
+  PRODUCER = 'PRODUCER',
+  MANAGER = 'MANAGER',
+}
+
 export interface Customer {
   // back only
   _id?: string;
@@ -5,6 +12,7 @@ export interface Customer {
   email: string;
   name?: string;
   phone?: string;
+  role?: Role;
   emailVerified: boolean;
   verificationCode?: string;
   verificationExpires?: number;
@@ -12,5 +20,19 @@ export interface Customer {
   resignationCode?: string;
   createdAt: number;
   lastBookingAt?: number;
-  isManager?: boolean;
+}
+
+export interface Member {
+  email: string;
+  name?: string;
+  phone?: string;
+  role: Role;
+  emailVerified: boolean;
+  isSubscribed?: boolean;
+  createdAt: number;
+  lastBookingAt?: number;
+}
+
+export interface AuthenticatedProfile extends Member {
+  uuid: string;
 }

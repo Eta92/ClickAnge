@@ -1,0 +1,207 @@
+<!-- Members header -->
+<header class="members-header">
+  <a routerLink="/home" class="back-link">← Retour à l'accueil</a>
+
+  <div class="header-card">
+    <h2 class="members-title">Membres</h2>
+    <div class="member-count">
+      <span class="count-badge">{{ countsByRole()["ALL"] }}</span>
+      <span class="count-label">membre(s)</span>
+    </div>
+    @if (pendingCount() > 0) {
+      <span class="pending-hint">
+        {{ pendingCount() }} en attente de première connexion
+      </span>
+    }
+  </div>
+
+  <button class="btn-bulk" type="button" (click)="toggleBulk()">
+    {{ showBulk() ? "Fermer l'import" : "Import en masse" }}
+  </button>
+</header>
+
+<main class="members-main">
+  <!-- Add one member -->
+  <section class="add-member-card">
+    <h3>Ajouter un membre</h3>
+    <p class="hint">
+      Le membre pourra se connecter avec cette adresse et deviendra
+      utilisateur à sa première connexion.
+    </p>
+
+    <form class="add-member-form" (ngSubmit)="addMember()">
+      <div class="form-group">
+        <label for="member-name">Nom</label>
+        <input
+          id="member-name"
+          type="text"
+          name="name"
+          [(ngModel)]="newName"
+          placeholder="Jean Dupont"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="member-email">Adresse e-mail</label>
+        <input
+          id="member-email"
+          type="email"
+          name="email"
+          [(ngModel)]="newEmail"
+          required
+          placeholder="jean.dupont@example.com"
+        />
+      </div>
+
+      <button
+        class="btn-add"
+        type="submit"
+        [disabled]="isSubmitting() || !newEmail"
+      >
+        Ajouter
+      </button>
+    </form>
+  </section>
+
+  <!-- Bulk add -->
+  @if (showBulk()) {
+    <section class="bulk-card">
+      <h3>Import en masse</h3>
+      <p class="hint">
+        Une adresse par ligne, au choix <code>jean.dupont&#64;example.com</code>
+        ou <code>Jean Dupont &lt;jean.dupont&#64;example.com&gt;</code>. Les
+        adresses déjà connues sont ignorées.
+      </p>
+
+      <textarea
+        class="bulk-input"
+        name="bulk"
+        rows="8"
+        [(ngModel)]="bulkRaw"
+        placeholder="Jean Dupont &lt;jean.dupont@example.com&gt;&#10;marie.martin@example.com"
+      ></textarea>
+
+      <button
+        class="btn-add"
+        type="button"
+        [disabled]="isSubmitting() || !bulkRaw"
+        (click)="addBulk()"
+      >
+        Importer
+      </button>
+
+      @if (bulkResult(); as result) {
+        <ul class="bulk-result">
+          <li class="added">{{ result.added.length }} ajouté(s)</li>
+          <li class="skipped">
+            {{ result.skipped.length }} déjà connu(s)
+            @if (result.skipped.length > 0) {
+              <span class="detail">— {{ result.skipped.join(", ") }}</span>
+            }
+          </li>
+          @if (result.invalid.length > 0) {
+            <li class="invalid">
+              {{ result.invalid.length }} ligne(s) illisible(s)
+              <span class="detail">— {{ result.invalid.join(", ") }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  <!-- Filters -->
+  <section class="filters">
+    <input
+      class="search-input"
+      type="search"
+      [value]="search()"
+      (input)="onSearchChange($any($event.target).value)"
+      placeholder="Rechercher un nom ou une adresse…"
+      aria-label="Rechercher un membre"
+    />
+
+    <div class="role-chips">
+      <button
+        type="button"
+        class="role-chip"
+        [class.active]="roleFilter() === 'ALL'"
+        (click)="setRoleFilter('ALL')"
+      >
+        Tous <span class="chip-count">{{ countsByRole()["ALL"] }}</span>
+      </button>
+      @for (role of allRoles; track role) {
+        <button
+          type="button"
+          class="role-chip"
+          [class.active]="roleFilter() === role"
+          (click)="setRoleFilter(role)"
+        >
+          {{ roleLabel(role) }}
+          <span class="chip-count">{{ countsByRole()[role] }}</span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- Member table -->
+  <div class="members-table-wrapper">
+    @if (isLoading()) {
+      <p class="empty-state">Chargement…</p>
+    } @else if (filteredMembers().length === 0) {
+      <p class="empty-state">Aucun membre ne correspond à cette recherche.</p>
+    } @else {
+      <table class="members-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Email</th>
+            <th>Rôle</th>
+            <th>Inscription</th>
+            <th>Ajouté le</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of filteredMembers(); track member.email) {
+            <tr class="member-row" [class.is-self]="isSelf(member)">
+              <td class="member-name">
+                {{ member.name || "—" }}
+                @if (isSelf(member)) {
+                  <span class="self-tag">vous</span>
+                }
+              </td>
+              <td class="member-email">{{ member.email }}</td>
+              <td>
+                @if (canPromote(member)) {
+                  <select
+                    class="role-select"
+                    [class]="roleBadgeClass(member.role)"
+                    [value]="member.role"
+                    (change)="onRoleChange(member, $event)"
+                    [attr.aria-label]="'Rôle de ' + member.email"
+                  >
+                    @for (role of promotionOptions(member); track role) {
+                      <option [value]="role">{{ roleLabel(role) }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="role-badge" [class]="roleBadgeClass(member.role)">
+                    {{ roleLabel(member.role) }}
+                  </span>
+                }
+              </td>
+              <td>
+                @if (member.emailVerified) {
+                  <span class="signup-state done">Compte créé</span>
+                } @else {
+                  <span class="signup-state pending">En attente</span>
+                }
+              </td>
+              <td class="member-date">{{ formatDate(member.createdAt) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+</main>

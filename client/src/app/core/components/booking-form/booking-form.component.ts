@@ -376,7 +376,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     this.errorMessage = null;
 
     this.submitSub = this.bookingService
-      .updateBookingNote(this.booking.uuid, profile.email, this.note.trim())
+      .updateBookingNote(this.booking.uuid, this.note.trim())
       .subscribe({
         next: (updated) => {
           this.saved.emit(updated);

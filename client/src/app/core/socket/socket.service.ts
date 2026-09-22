@@ -3,11 +3,22 @@ import { Observable } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { environment } from '../../../environments/environment';
 
+const CUSTOMER_STORAGE_KEY = 'clickange_user';
+
 @Injectable({
   providedIn: 'root',
 })
 export class SocketService {
   private socket: Socket | null = null;
+
+  private storedUuid(): string {
+    try {
+      const raw = localStorage.getItem(CUSTOMER_STORAGE_KEY);
+      return raw ? (JSON.parse(raw)?.uuid ?? '') : '';
+    } catch {
+      return '';
+    }
+  }
 
   /** Whether the underlying socket is currently connected */
   get isConnected(): boolean {
@@ -30,6 +41,7 @@ export class SocketService {
     this.socket = io(environment.serverUrl, {
       transports: ['polling', 'websocket'],
       withCredentials: false,
+      auth: { uuid: this.storedUuid() },
     });
 
     // Set up ClientInit listener immediately after socket creation (before connect fires)
@@ -40,7 +52,6 @@ export class SocketService {
 
     this.socket.on('connect', () => {
       console.log('[SocketService] Connected! Socket ID:', this.socket?.id);
-      // Handshake: tell server we're ready so it sends ClientInit
       this.socket!.emit('SocketStarted');
     });
     this.socket.on('disconnect', (reason) => {

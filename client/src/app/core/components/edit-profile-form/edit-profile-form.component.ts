@@ -10,6 +10,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { first } from 'rxjs/operators';
 import { CustomerProfile } from '../../models/customer-profile.model';
+import { Member, Role } from '../../models/customer.model';
+import { resolveRole, roleLabel } from '../../models/role.helper';
 import { SocketService } from '../../socket/socket.service';
 import { LoginService } from '../../auth/login.service';
 
@@ -23,11 +25,13 @@ import { LoginService } from '../../auth/login.service';
 export class EditProfileFormComponent implements OnChanges {
   @Input() profile: CustomerProfile | null = null;
 
-  @Output() saved = new EventEmitter<CustomerProfile>();
+  @Output() saved = new EventEmitter<Member>();
   @Output() cancelled = new EventEmitter<void>();
 
   name = '';
   phone = '';
+  roleName = '';
+  showRoleBadge = false;
   isSubscribed = false;
   isSubmitting = false;
   errorMessage: string | null = null;
@@ -42,6 +46,9 @@ export class EditProfileFormComponent implements OnChanges {
       this.name = this.profile?.name || '';
       this.phone = this.profile?.phone || '';
       this.isSubscribed = !!this.profile?.isSubscribed;
+      const role = resolveRole(this.profile);
+      this.roleName = roleLabel(role);
+      this.showRoleBadge = role === Role.PRODUCER || role === Role.MANAGER;
       this.errorMessage = null;
     }
   }
@@ -53,14 +60,13 @@ export class EditProfileFormComponent implements OnChanges {
     this.errorMessage = null;
 
     this.socketService.emit('updateCustomerProfile', {
-      email: this.profile.email,
       name: this.name,
       phone: this.phone,
       isSubscribed: this.isSubscribed,
     });
 
     this.socketService
-      .on<CustomerProfile>('CustomerProfileUpdated')
+      .on<Member>('CustomerProfileUpdated')
       .pipe(first())
       .subscribe((updated) => {
         this.isSubmitting = false;

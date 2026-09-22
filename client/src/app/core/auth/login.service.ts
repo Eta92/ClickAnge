@@ -2,6 +2,8 @@ import { Injectable, OnDestroy, signal, computed } from '@angular/core';
 import { ToastrService } from 'ngx-toastr';
 import { first } from 'rxjs/operators';
 import { CustomerProfile } from '../models/customer-profile.model';
+import { AuthenticatedProfile, Member, Role } from '../models/customer.model';
+import { hasAtLeast, resolveRole } from '../models/role.helper';
 import { SocketService } from '../socket/socket.service';
 
 const CUSTOMER_STORAGE_KEY = 'clickange_user';
@@ -48,11 +50,17 @@ export class LoginService implements OnDestroy {
     errorMessage: this.errorMessage(),
   }));
 
-  /** Whether a verified profile exists in localStorage. */
-  readonly isAuthenticated = computed(() => !!this.getStoredProfile());
+  private readonly _profile = signal<CustomerProfile | null>(
+    this.readStoredProfile(),
+  );
 
-  /** Whether the stored user is the manager. */
-  readonly isManager = computed(() => !!this.getStoredProfile()?.isManager);
+  readonly profile = this._profile.asReadonly();
+
+  readonly isAuthenticated = computed(() => !!this._profile());
+
+  readonly role = computed(() => resolveRole(this._profile()));
+
+  readonly isManager = computed(() => hasAtLeast(this.role(), Role.MANAGER));
 
   // --- public API (patch state) ---
 
@@ -105,7 +113,7 @@ export class LoginService implements OnDestroy {
       });
 
     this.socketService
-      .on<CustomerProfile>('EmailVerificationConfirmed')
+      .on<AuthenticatedProfile>('EmailVerificationConfirmed')
       .pipe(first())
       .subscribe((profile) => {
         this.saveProfile(profile);
@@ -138,19 +146,48 @@ export class LoginService implements OnDestroy {
     this.patch(this.initialState);
   }
 
+  // --- server-side refresh ---
+  refreshProfile(): void {
+    if (!this._profile()) return;
+    this.socketService.emit('getProfile');
+  }
+  mergeServerProfile(member: Member | null): void {
+    const current = this._profile();
+    if (!member || !current || member.email !== current.email) return;
+
+    this.saveProfile({
+      ...current,
+      name: member.name,
+      phone: member.phone,
+      isSubscribed: member.isSubscribed,
+      emailVerified: member.emailVerified,
+      role: member.role,
+    });
+  }
+
   // --- persistence helpers ---
 
   getStoredProfile(): CustomerProfile | null {
-    const raw = localStorage.getItem(CUSTOMER_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return this._profile();
   }
 
   saveProfile(profile: CustomerProfile): void {
     localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(profile));
+    this._profile.set(profile);
   }
 
   clearStoredProfile(): void {
     localStorage.removeItem(CUSTOMER_STORAGE_KEY);
+    this._profile.set(null);
+  }
+
+  private readStoredProfile(): CustomerProfile | null {
+    try {
+      const raw = localStorage.getItem(CUSTOMER_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** @deprecated — socket listeners now set up inside requestCode() via takeUntilDestroyed */
@@ -158,10 +195,36 @@ export class LoginService implements OnDestroy {
     /* no-op for backward compat */
   }
 
-  ngOnDestroy(): void {}
+  ngOnDestroy(): void {
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+  }
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') this.refreshProfile();
+  };
 
   constructor(
     private socketService: SocketService,
     private toastr: ToastrService,
-  ) {}
+  ) {
+    this.socketService.on<Member | null>('GetProfile').subscribe((member) => {
+      console.log(
+        '[LoginService] Server identified this socket as',
+        member ? `${member.email} (${member.role})` : 'anonymous',
+      );
+      this.mergeServerProfile(member);
+    });
+
+    // Pushed by the server when a manager promotes this account while it is open.
+    this.socketService.on<Member>('ProfileRoleChanged').subscribe((member) => {
+      console.log('[LoginService] Role changed by a manager ->', member.role);
+      this.mergeServerProfile(member);
+    });
+
+    this.socketService
+      .on<void>('ClientInit')
+      .subscribe(() => this.refreshProfile());
+
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+  }
 }

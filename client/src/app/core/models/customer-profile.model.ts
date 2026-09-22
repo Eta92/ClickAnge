@@ -1,3 +1,5 @@
+import { Role } from './customer.model';
+
 // lightweight profile stored client-side (localStorage) once the customer confirms their email
 export interface CustomerProfile {
   uuid: string;
@@ -6,5 +8,5 @@ export interface CustomerProfile {
   phone?: string;
   isSubscribed?: boolean;
   emailVerified: boolean;
-  isManager?: boolean;
+  role?: Role;
 }

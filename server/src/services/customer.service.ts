@@ -1,42 +1,46 @@
 import { randomInt } from 'crypto';
 import { nanoid } from 'nanoid';
 import { Booking } from '../models/booking.model';
-import { Customer } from '../models/customer.model';
+import { AuthenticatedProfile, Customer, Member, Role } from '../models/customer.model';
 import { Offer } from '../models/offer.model';
-import { WHITELIST_MESSAGE, isWhitelisted } from '../helpers/whitelist.helper';
+import { resolveRole, toAuthenticatedProfile, toMember } from '../models/role.helper';
+import { EMAIL_REGEX, normalizeEmail } from '../helpers/member.helper';
+import { NOT_A_MEMBER_MESSAGE } from './member.service';
 import { EmailService } from './email.service';
 import { MongoService } from './mongo.service';
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export class CustomerService {
-  // sends a one-time verification code to the given email, creating the customer record if needed
+  // sends a one-time verification code to a registered member's email
   public static async requestVerificationCode(email: string, name?: string): Promise<void> {
-    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       throw new Error('Invalid email address');
     }
 
-    if (!isWhitelisted(normalizedEmail)) {
-      throw new Error(WHITELIST_MESSAGE);
+    // Accounts are created up-front by a manager on the members page, so an
+    // unknown address cannot start the verification flow.
+    const existing = await MongoService.getCustomerByEmail(normalizedEmail);
+    if (!existing) {
+      throw new Error(NOT_A_MEMBER_MESSAGE);
     }
 
-    const existing = await MongoService.getCustomerByEmail(normalizedEmail);
     const code = randomInt(100000, 1000000).toString();
 
     const customer: Customer = {
-      uuid: existing?.uuid || nanoid(10),
+      uuid: existing.uuid || nanoid(10),
       email: normalizedEmail,
-      name: name || existing?.name,
-      phone: existing?.phone,
-      emailVerified: existing?.emailVerified || false,
+      name: name || existing.name,
+      phone: existing.phone,
+      role: resolveRole(existing),
+      emailVerified: existing.emailVerified || false,
       verificationCode: code,
       verificationExpires: Date.now() + CODE_TTL_MS,
-      isSubscribed: existing ? existing.isSubscribed : true,
-      resignationCode: existing?.resignationCode || nanoid(16),
-      createdAt: existing?.createdAt || Date.now(),
-      lastBookingAt: existing?.lastBookingAt,
+      isSubscribed: existing.isSubscribed ?? true,
+      resignationCode: existing.resignationCode || nanoid(16),
+      createdAt: existing.createdAt || Date.now(),
+      lastBookingAt: existing.lastBookingAt,
     };
 
     await MongoService.upsertCustomer(customer);
@@ -44,8 +48,8 @@ export class CustomerService {
   }
 
   // updates the customer's editable profile fields (name, phone, subscription) — email is never changed here
-  public static async updateProfile(email: string, updates: { name?: string; phone?: string; isSubscribed?: boolean }): Promise<Customer> {
-    const normalizedEmail = (email || '').trim().toLowerCase();
+  public static async updateProfile(email: string, updates: { name?: string; phone?: string; isSubscribed?: boolean }): Promise<Member> {
+    const normalizedEmail = normalizeEmail(email);
     const existing = await MongoService.getCustomerByEmail(normalizedEmail);
     if (!existing) {
       throw new Error('Customer not found');
@@ -59,16 +63,13 @@ export class CustomerService {
     };
 
     await MongoService.upsertCustomer(updated);
-    return updated;
+    return toMember(updated);
   }
 
-  // validates the code sent by the customer and marks their email as verified
-  public static async confirmVerificationCode(email: string, code: string): Promise<Customer> {
-    const normalizedEmail = (email || '').trim().toLowerCase();
-
-    if (!isWhitelisted(normalizedEmail)) {
-      throw new Error(WHITELIST_MESSAGE);
-    }
+  // validates the code sent by the customer and marks their email as verified.
+  // This is the only path that returns the uuid — see `toAuthenticatedProfile`.
+  public static async confirmVerificationCode(email: string, code: string): Promise<AuthenticatedProfile> {
+    const normalizedEmail = normalizeEmail(email);
 
     const customer = await MongoService.getCustomerByEmail(normalizedEmail);
 
@@ -85,7 +86,15 @@ export class CustomerService {
 
     await MongoService.confirmCustomerEmail(normalizedEmail);
 
-    return customer;
+    // Signing in for the first time turns the pre-registered member into a full
+    // user; anyone already promoted further keeps the role they were given.
+    const currentRole = resolveRole(customer);
+    const role = currentRole === Role.MEMBER ? Role.USER : currentRole;
+    if (role !== customer!.role) {
+      await MongoService.setCustomerRole(normalizedEmail, role);
+    }
+
+    return toAuthenticatedProfile({ ...customer!, role, emailVerified: true });
   }
 
   // emails every subscribed, verified customer about a newly published offer

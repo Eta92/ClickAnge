@@ -23,8 +23,8 @@
 
     <h2>Mon profil</h2>
 
-    @if (profile?.isManager) {
-      <span class="manager-badge">Gestionnaire</span>
+    @if (showRoleBadge) {
+      <span class="manager-badge">{{ roleName }}</span>
     }
 
     <!-- Error message -->
