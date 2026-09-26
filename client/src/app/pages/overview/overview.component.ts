@@ -1,10 +1,11 @@
 import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DateTime } from 'luxon';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { Offer, OfferStatus } from '../../core/models/offer.model';
 import { computeOrderTotal } from '../../core/models/offer.helper';
 import { BookingService } from '../../core/services/booking.service';
+import { LoginService } from '../../core/auth/login.service';
 
 @Component({
   standalone: false,
@@ -35,10 +36,23 @@ export class OverviewComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private bookingService: BookingService,
+    private loginService: LoginService,
   ) {}
 
+  // a producer reads this page; changing a status stays a manager's call
+  get isManager(): boolean {
+    return this.loginService.isManager();
+  }
+
   ngOnInit(): void {
+    // the server enforces it too; this just avoids an empty page for customers
+    if (!this.loginService.canManageOffers()) {
+      this.router.navigate(['/home']);
+      return;
+    }
+
     this.offerId = this.route.snapshot.paramMap.get('offerId');
 
     if (this.offerId) {

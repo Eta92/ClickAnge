@@ -21,6 +21,7 @@ import {
 } from '../../models/offer.model';
 import { normalizeBankAccountId } from '../../models/offer.helper';
 import { SocketService } from '../../socket/socket.service';
+import { LoginService } from '../../auth/login.service';
 
 // Available food icons from assets/icons/
 const ICON_LIST = [
@@ -152,7 +153,10 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   isSubmitting = false;
   errorMessage: string | null = null;
 
-  constructor(private socketService: SocketService) {}
+  constructor(
+    private socketService: SocketService,
+    private loginService: LoginService,
+  ) {}
 
   ngOnInit(): void {
     this._createSub?.unsubscribe();
@@ -191,12 +195,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
    * Publish is available for a brand-new offer (created OPEN in one step) or for
    * an already-created offer still in DRAFT.
    */
+  // publishing and closing stay a manager's call — a producer only saves drafts
   get canPublish(): boolean {
+    if (!this.loginService.isManager()) return false;
     return !this.isEditing || this.offer?.status === OfferStatus.DRAFT;
   }
 
   /** Close button only makes sense for an already-created offer currently OPEN */
   get canClose(): boolean {
+    if (!this.loginService.isManager()) return false;
     return this.isEditing && this.offer?.status === OfferStatus.OPEN;
   }
 

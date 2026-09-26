@@ -109,6 +109,13 @@
   font-weight: 500;
 }
 
+.status-select-offer:disabled,
+.status-select:disabled {
+  opacity: 0.7;
+  cursor: default;
+  background: rgba(var(--color-sage-rgb), 0.12);
+}
+
 .status-select-offer {
   padding: 0.375rem 0.75rem;
   background: #fff;

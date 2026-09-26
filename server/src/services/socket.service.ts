@@ -66,8 +66,8 @@ export class SocketService {
       });
 
       socket.on('getAllOffers', () => {
-        // Includes drafts, so this is the manager's list only.
-        if (requiredRole(Role.MANAGER, socket)) {
+        // Includes drafts: the offer-management list, shared by producers.
+        if (requiredRole(Role.PRODUCER, socket)) {
           socket.emit('GetAllOffers', OfferService.getAllOffers());
         }
       });
@@ -75,8 +75,8 @@ export class SocketService {
       socket.on('getOffer', (uuid: string) => {
         const offer = OfferService.getOffer(uuid);
         // A draft is not published yet, so it stays indistinguishable from an
-        // unknown offer for anyone but a manager.
-        if (!offer || (offer.status === OfferStatus.DRAFT && !socketHasRole(socket, Role.MANAGER))) {
+        // unknown offer for anyone who does not manage offers.
+        if (!offer || (offer.status === OfferStatus.DRAFT && !socketHasRole(socket, Role.PRODUCER))) {
           socket.emit('ToasterError', 'Offer not found');
           return;
         }
@@ -84,9 +84,14 @@ export class SocketService {
       });
 
       socket.on('createOffer', async (offerData: CreateOfferInput) => {
-        if (requiredRole(Role.MANAGER, socket)) {
+        if (requiredRole(Role.PRODUCER, socket)) {
           try {
-            const offer = await OfferService.createOffer(this.io, offerData);
+            // A producer's offer always lands as a draft: putting one in front
+            // of customers — and mailing them about it — stays a manager's call.
+            const input = socketHasRole(socket, Role.MANAGER)
+              ? offerData
+              : { ...offerData, publish: false, notifySubscribers: false };
+            const offer = await OfferService.createOffer(this.io, input);
             socket.emit('OfferCreated', offer);
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
@@ -95,9 +100,19 @@ export class SocketService {
       });
 
       socket.on('updateOffer', async (data: { uuid: string; offerData: any }) => {
-        if (requiredRole(Role.MANAGER, socket)) {
+        if (requiredRole(Role.PRODUCER, socket)) {
           try {
-            await OfferService.updateOffer(this.io, data.uuid, data.offerData);
+            let offerData = data.offerData;
+            if (!socketHasRole(socket, Role.MANAGER)) {
+              // Once an offer leaves draft it is out of a producer's hands, and
+              // a producer can never be the one to move it out.
+              if (OfferService.getOffer(data.uuid)?.status !== OfferStatus.DRAFT) {
+                socket.emit('ToasterError', 'Seuls les brouillons sont modifiables');
+                return;
+              }
+              offerData = { ...offerData, status: OfferStatus.DRAFT };
+            }
+            await OfferService.updateOffer(this.io, data.uuid, offerData);
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
           }
@@ -135,7 +150,7 @@ export class SocketService {
       // ================================
       socket.on('getBookingsForOffer', async (offerId: string) => {
         // Carries every customer's name, email and phone for that offer.
-        if (requiredRole(Role.MANAGER, socket)) {
+        if (requiredRole(Role.PRODUCER, socket)) {
           const bookings = BookingService.getBookingsForOffer(offerId);
           // Enrich with the customer's phone number for the manager's overview / export.
           const emails = [...new Set(bookings.map((b) => b.customerEmail))];

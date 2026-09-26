@@ -8,6 +8,7 @@
       <select
         class="status-select-offer"
         [value]="offer.status"
+        [disabled]="!isManager"
         (change)="onOfferStatusChange($event)"
       >
         <option value="0">Brouillon</option>
@@ -93,6 +94,7 @@
               <select
                 class="status-select"
                 [value]="booking.status"
+                [disabled]="!isManager"
                 (change)="onStatusChange(booking, $event)"
               >
                 <option value="0">En attente</option>

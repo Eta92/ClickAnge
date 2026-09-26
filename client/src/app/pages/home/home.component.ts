@@ -140,7 +140,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private loadOffers(): void {
-    const source = this.isManager
+    const source = this.canManageOffers
       ? this.bookingService.getAllOffers()
       : this.bookingService.getOpenOffers();
     source.subscribe({
@@ -166,6 +166,15 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get isManager(): boolean {
     return this.loginService.isManager();
+  }
+
+  get canManageOffers(): boolean {
+    return this.loginService.canManageOffers();
+  }
+
+  /** A producer's remit stops at drafts; a manager may edit any offer. */
+  canEditOffer(offer: Offer): boolean {
+    return this.isManager || offer.status === OfferStatus.DRAFT;
   }
 
   /** Look up the icon for a booking's associated offer */
@@ -339,8 +348,15 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onSelectOffer(offer: Offer): void {
-    if (this.isManager) {
-      // Manager clicks → open offer form to create/edit
+    if (this.canManageOffers) {
+      // Manager / producer clicks → edit, while the offer is still theirs
+      if (!this.canEditOffer(offer)) {
+        this.toastr.info(
+          'Seuls les brouillons sont modifiables.',
+          'Offre publiée',
+        );
+        return;
+      }
       this.offerFormOffer = { ...offer };
       this.showOfferForm = true;
     } else if (!this.isAuthenticated) {

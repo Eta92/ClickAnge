@@ -45,7 +45,7 @@
     class="offers-section"
     [class.full-when-empty]="myBookings.length === 0"
   >
-    @if (isManager) {
+    @if (canManageOffers) {
       <div class="section-title-row">
         <h2 class="section-title">Toutes les offres</h2>
         <button class="btn-create-offer" (click)="onCreateOffer()">
@@ -69,8 +69,8 @@
           [class.draft-card]="offer.status === 0"
           (click)="onSelectOffer(offer)"
         >
-          <!-- Manager: view button at top-right -->
-          @if (isManager) {
+          <!-- Manager / producer: view button at top-right -->
+          @if (canManageOffers) {
             <button
               class="btn-view-offer"
               title="Voir l'offre"

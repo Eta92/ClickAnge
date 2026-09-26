@@ -62,6 +62,11 @@ export class LoginService implements OnDestroy {
 
   readonly isManager = computed(() => hasAtLeast(this.role(), Role.MANAGER));
 
+  // producer or manager: works on offers instead of booking them
+  readonly canManageOffers = computed(() =>
+    hasAtLeast(this.role(), Role.PRODUCER),
+  );
+
   // --- public API (patch state) ---
 
   private patch(patch: Partial<LoginState>): void {
