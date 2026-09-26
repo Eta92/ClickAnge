@@ -2,6 +2,8 @@ import { nanoid } from 'nanoid';
 import { Server as SocketServer } from 'socket.io';
 import { GlobalQuantities, Offer, OfferStatus, Product, ProductQuantity, ProductUnit } from '../models/offer.model';
 import { isTotalQuantityShared, normalizeBankAccountId } from '../models/offer.helper';
+import { BookingStatus } from '../models/booking.model';
+import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
 import { MongoService } from './mongo.service';
 import { SyncHelper } from '../helpers/sync.helper';
@@ -11,8 +13,9 @@ export interface CreateOfferProductInput {
   unitPrice: number;
   unitType: ProductUnit;
   minimumOrder: number;
-  maximumOrder: number;
-  totalQuantity: number;
+  // empty (null / absent) = no limit
+  maximumOrder?: number | null;
+  totalQuantity?: number | null;
 }
 
 export interface CreateOfferInput {
@@ -107,9 +110,10 @@ export class OfferService {
         unitPrice: p.unitPrice,
         unitType: p.unitType ?? ProductUnit.PIECE,
         minimumOrder: p.minimumOrder ?? 1,
-        maximumOrder: p.maximumOrder ?? p.totalQuantity,
-        totalQuantity: p.totalQuantity,
-        remainingQuantity: p.totalQuantity,
+        // `?? undefined` turns a cleared (null) field into "no limit"
+        maximumOrder: p.maximumOrder ?? undefined,
+        totalQuantity: p.totalQuantity ?? undefined,
+        remainingQuantity: p.totalQuantity ?? undefined,
       };
     });
 
@@ -153,6 +157,16 @@ export class OfferService {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 
+    this.applyOfferChanges(offer, data);
+
+    offer.updatedAt = Date.now();
+    await MongoService.upsertOffer(offer);
+    io?.emit('OfferUpdated', offer);
+    return offer;
+  }
+
+  // mutates the in-memory offer with the edited fields — persisting and broadcasting is up to the caller
+  private static applyOfferChanges(offer: Offer, data: Partial<Offer>): void {
     offer.name = data.name ?? offer.name;
     offer.description = data.description ?? offer.description;
     if (data.icon !== undefined) offer.icon = data.icon;
@@ -180,6 +194,10 @@ export class OfferService {
       offer.products = data.products.map((raw) => {
         const incoming = withGlobalQuantities(raw, globals);
         const existing = offer.products.find((p) => p.name === incoming.name);
+        // The form always sends the full product, so an empty max / stock means
+        // "no limit" rather than "keep the previous value".
+        const maximumOrder = incoming.maximumOrder ?? undefined;
+        const totalQuantity = incoming.totalQuantity ?? undefined;
         if (!existing) {
           // New product line — start fully available
           return {
@@ -187,22 +205,24 @@ export class OfferService {
             unitPrice: incoming.unitPrice,
             unitType: incoming.unitType ?? ProductUnit.PIECE,
             minimumOrder: incoming.minimumOrder ?? 1,
-            maximumOrder: incoming.maximumOrder ?? incoming.totalQuantity,
-            totalQuantity: incoming.totalQuantity,
-            remainingQuantity: incoming.totalQuantity,
+            maximumOrder,
+            totalQuantity,
+            remainingQuantity: totalQuantity,
           };
         }
-        // Existing product — preserve already-booked quantity when totalQuantity changes
-        const bookedQuantity = existing.totalQuantity - existing.remainingQuantity;
-        const totalQuantity = incoming.totalQuantity ?? existing.totalQuantity;
+        // Existing product — what's left is the new total minus what bookings already hold
+        const remainingQuantity =
+          totalQuantity === undefined
+            ? undefined
+            : Math.max(0, totalQuantity - this.bookedUnits(offer.uuid, existing.name));
         return {
           name: incoming.name,
           unitPrice: incoming.unitPrice ?? existing.unitPrice,
           unitType: incoming.unitType ?? existing.unitType,
           minimumOrder: incoming.minimumOrder ?? existing.minimumOrder,
-          maximumOrder: incoming.maximumOrder ?? existing.maximumOrder,
+          maximumOrder,
           totalQuantity,
-          remainingQuantity: Math.max(0, totalQuantity - bookedQuantity),
+          remainingQuantity,
         };
       });
     }
@@ -212,18 +232,22 @@ export class OfferService {
     // remaining that bookings drew down.
     if (isTotalQuantityShared(offer)) {
       const total = offer.globalQuantities!.totalQuantity ?? 0;
-      const booked = offer.products.reduce((max, p) => Math.max(max, p.totalQuantity - p.remainingQuantity), 0);
-      const remaining = Math.max(0, total - booked);
+      const remaining = Math.max(0, total - this.bookedUnits(offer.uuid));
       for (const product of offer.products) {
         product.totalQuantity = total;
         product.remainingQuantity = remaining;
       }
     }
+  }
 
-    offer.updatedAt = Date.now();
-    await MongoService.upsertOffer(offer);
-    io?.emit('OfferUpdated', offer);
-    return offer;
+  // Units held by live bookings (one product, or all of them). Counted from the
+  // bookings themselves since an unlimited product has no stock to subtract from.
+  private static bookedUnits(offerId: string, productName?: string): number {
+    return BookingService.getBookingsForOffer(offerId)
+      .filter((booking) => booking.status !== BookingStatus.CANCELLED)
+      .flatMap((booking) => booking.purchases)
+      .filter((purchase) => productName === undefined || purchase.name === productName)
+      .reduce((sum, purchase) => sum + purchase.quantity, 0);
   }
 
   public static async updateOfferStatus(io: SocketServer, uuid: string, status: OfferStatus): Promise<Offer | null> {
@@ -237,11 +261,18 @@ export class OfferService {
     return offer;
   }
 
-  // switches a DRAFT offer to OPEN and optionally emails subscribers an auto-generated announcement
-  public static async publishOffer(io: SocketServer, uuid: string, notifySubscribers: boolean): Promise<Offer | null> {
+  // switches a DRAFT offer to OPEN and optionally emails subscribers an auto-generated announcement.
+  // `changes` carries unsaved form edits so the announcement reflects them.
+  public static async publishOffer(
+    io: SocketServer,
+    uuid: string,
+    notifySubscribers: boolean,
+    changes?: Partial<Offer>
+  ): Promise<Offer | null> {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 
+    if (changes) this.applyOfferChanges(offer, changes);
     offer.status = OfferStatus.OPEN;
     offer.publishedAt = Date.now();
     offer.updatedAt = Date.now();
@@ -255,11 +286,13 @@ export class OfferService {
     return offer;
   }
 
-  // switches an OPEN offer to CLOSED — booking-confirmation emails (if any) are sent by the caller
-  public static async closeOffer(io: SocketServer, uuid: string): Promise<Offer | null> {
+  // switches an OPEN offer to CLOSED — booking-confirmation emails (if any) are sent by the caller.
+  // `changes` carries unsaved form edits so the confirmation emails reflect them.
+  public static async closeOffer(io: SocketServer, uuid: string, changes?: Partial<Offer>): Promise<Offer | null> {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 
+    if (changes) this.applyOfferChanges(offer, changes);
     offer.status = OfferStatus.CLOSED;
     offer.closedAt = Date.now();
     offer.updatedAt = Date.now();

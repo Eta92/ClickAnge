@@ -235,20 +235,24 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     );
   }
 
-  getMaxQuantity(product: Product): number {
+  /** Upper bound for the quantity input, or null when neither stock nor max-order limits it. */
+  getMaxQuantity(product: Product): number | null {
     const othersSelected = this.totalSelected - this.getQuantity(product);
 
-    // Upper bound from stock: the shared pool, or this product's own count.
+    // Upper bound from stock: the shared pool, or this product's own count (none when unlimited).
     const stockCap = this.isTotalShared
       ? this.sharedStockCeiling - othersSelected
-      : product.remainingQuantity + this.previousQuantity(product.name);
+      : product.remainingQuantity != null
+        ? product.remainingQuantity + this.previousQuantity(product.name)
+        : Infinity;
 
-    // Upper bound from the max-order limit: shared across the booking, or per product.
+    // Upper bound from the max-order limit: shared across the booking, or per product (none when empty).
     const orderCap = this.isMaximumShared
       ? this.sharedMaximum - othersSelected
-      : product.maximumOrder;
+      : (product.maximumOrder ?? Infinity);
 
-    return Math.max(0, Math.min(stockCap, orderCap));
+    const cap = Math.min(stockCap, orderCap);
+    return cap === Infinity ? null : Math.max(0, cap);
   }
 
   /** Whether the offer has a promotion price configured for its full bundle. */
@@ -259,13 +263,17 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
   /** True once the selected quantities reach the shared maximum (bundle complete). */
   get promotionApplied(): boolean {
     return (
-      this.promotionActive && this.totalSelected > 0 && this.totalSelected >= this.sharedMaximum
+      this.promotionActive &&
+      this.totalSelected > 0 &&
+      this.totalSelected >= this.sharedMaximum
     );
   }
 
   /** Total price for the currently selected purchases, promotion included. */
   get totalPrice(): number {
-    return this.offer ? computeOrderTotal(this.offer, this.selectedPurchases) : 0;
+    return this.offer
+      ? computeOrderTotal(this.offer, this.selectedPurchases)
+      : 0;
   }
 
   get selectedPurchases(): Purchase[] {
@@ -396,6 +404,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       [ProductUnit.PIECE]: '/pièce',
       [ProductUnit.KILOGRAM]: '/kg',
       [ProductUnit.LITER]: '/L',
+      [ProductUnit.BOTTLE]: '/bouteille',
       [ProductUnit.OTHER]: '',
     };
     return labels[unitType] ?? '';
@@ -407,6 +416,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       [ProductUnit.PIECE]: 'pièce',
       [ProductUnit.KILOGRAM]: 'kilo',
       [ProductUnit.LITER]: 'litre',
+      [ProductUnit.BOTTLE]: 'btle',
       [ProductUnit.OTHER]: 'autre',
     };
     const label = labels[unitType] ?? '';

@@ -3,7 +3,7 @@ import { Socket, Server as SocketServer } from 'socket.io';
 import { BookingStatus, PaymentMethod } from '../models/booking.model';
 import { Member, Role } from '../models/customer.model';
 import { parseRole, toMember } from '../models/role.helper';
-import { OfferStatus } from '../models/offer.model';
+import { Offer, OfferStatus } from '../models/offer.model';
 import { attachRole, requiredRole, socketHasRole } from '../helpers/socket-auth.helper';
 import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
@@ -125,20 +125,20 @@ export class SocketService {
         }
       });
 
-      socket.on('publishOffer', async (data: { uuid: string; notifySubscribers: boolean }) => {
+      socket.on('publishOffer', async (data: { uuid: string; notifySubscribers: boolean; offerData?: Partial<Offer> }) => {
         if (requiredRole(Role.MANAGER, socket)) {
           try {
-            await OfferService.publishOffer(this.io, data.uuid, data.notifySubscribers);
+            await OfferService.publishOffer(this.io, data.uuid, data.notifySubscribers, data.offerData);
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
           }
         }
       });
 
-      socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean }) => {
+      socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean; offerData?: Partial<Offer> }) => {
         if (requiredRole(Role.MANAGER, socket)) {
           try {
-            await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers);
+            await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers, data.offerData);
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
           }
@@ -375,8 +375,12 @@ export class SocketService {
     }
   }
 
-  private static async closeOfferWithSideEffects(uuid: string, notifyCustomers: boolean): Promise<void> {
-    const offer = await OfferService.closeOffer(this.io, uuid);
+  private static async closeOfferWithSideEffects(
+    uuid: string,
+    notifyCustomers: boolean,
+    changes?: Partial<Offer>
+  ): Promise<void> {
+    const offer = await OfferService.closeOffer(this.io, uuid, changes);
     if (!offer) return;
 
     await BookingService.confirmActiveBookingsForOffer(offer.uuid);

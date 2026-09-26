@@ -129,7 +129,7 @@
             <div class="offer-details">
               <div class="offer-description">{{ offer.description }}</div>
               <div class="offer-pickup">
-                Retrait le {{ offer.pickupDate | date: "EEE d MMM" }} entre
+                Retrait le {{ offer.pickupDate | date: "EEEE d MMM" }} entre
                 {{ offer.pickupWindowStart | date: "HH:mm" }} et
                 {{ offer.pickupWindowEnd | date: "HH:mm" }}
               </div>
@@ -139,7 +139,7 @@
                     {{ product.name }} {{ product.unitPrice }}€{{
                       getUnitLabel(product.unitType)
                     }}
-                    @if (!hasSharedStock(offer)) {
+                    @if (!hasSharedStock(offer) && product.remainingQuantity != null) {
                       ({{ product.remainingQuantity }})
                     }
                   </span>

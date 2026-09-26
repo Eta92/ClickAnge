@@ -29,7 +29,7 @@
         </span>
       </button>
 
-      <button type="button" class="choice-card" (click)="selectExcel()">
+      <!--button type="button" class="choice-card" (click)="selectExcel()">
         <span class="choice-icon">📊</span>
         <span class="choice-text">
           <span class="choice-title">Importer un fichier Excel</span>
@@ -37,7 +37,7 @@
             >Générer l'offre à partir d'un fichier</span
           >
         </span>
-      </button>
+      </button-->
     </div>
   } @else {
     <div class="modal-header">
@@ -95,7 +95,9 @@
                       {{ product.name }} {{ product.unitPrice }}€{{
                         getUnitLabel(product.unitType)
                       }}
-                      ({{ product.remainingQuantity }})
+                      @if (product.remainingQuantity != null) {
+                        ({{ product.remainingQuantity }})
+                      }
                     </span>
                   }
                 </div>

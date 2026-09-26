@@ -119,15 +119,13 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     // Load previous bookings for authenticated customer
     if (this.customerProfile?.email) {
-      this.bookingService
-        .getMyBookings()
-        .subscribe({
-          next: (bookings) => {
-            this.bookingService.bookings.set(bookings);
-            this.cdr.detectChanges();
-          },
-          error: (err) => console.error('Failed to load bookings:', err),
-        });
+      this.bookingService.getMyBookings().subscribe({
+        next: (bookings) => {
+          this.bookingService.bookings.set(bookings);
+          this.cdr.detectChanges();
+        },
+        error: (err) => console.error('Failed to load bookings:', err),
+      });
     }
 
     // Always load offers for all visitors (authenticated or not)
@@ -217,12 +215,15 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Sum of remaining quantities across all products of an offer */
   getOfferRemainingTotal(offer: Offer): number {
-    return offer.products.reduce((sum, p) => sum + p.remainingQuantity, 0);
+    return offer.products.reduce(
+      (sum, p) => sum + (p.remainingQuantity ?? 0),
+      0,
+    );
   }
 
   /** Sum of total quantities across all products of an offer */
   getOfferTotalQuantity(offer: Offer): number {
-    return offer.products.reduce((sum, p) => sum + p.totalQuantity, 0);
+    return offer.products.reduce((sum, p) => sum + (p.totalQuantity ?? 0), 0);
   }
 
   /** Human-readable status label */
@@ -274,6 +275,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       [ProductUnit.KILOGRAM]: '/kg',
       [ProductUnit.PIECE]: '/pièce',
       [ProductUnit.LITER]: '/L',
+      [ProductUnit.BOTTLE]: '/btle',
       [ProductUnit.OTHER]: '',
     };
     return labels[unitType] ?? '';
@@ -400,12 +402,10 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadOffers();
     // Reload bookings so updatedAt / status reflect the latest change
     if (this.customerProfile?.email) {
-      this.bookingService
-        .getMyBookings()
-        .subscribe({
-          next: (bookings) => this.bookingService.bookings.set(bookings),
-          error: (err) => console.error('Failed to reload bookings:', err),
-        });
+      this.bookingService.getMyBookings().subscribe({
+        next: (bookings) => this.bookingService.bookings.set(bookings),
+        error: (err) => console.error('Failed to reload bookings:', err),
+      });
     }
   }
 

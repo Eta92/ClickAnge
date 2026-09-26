@@ -56,6 +56,7 @@ export class CreateOfferChoiceComponent {
       [ProductUnit.KILOGRAM]: '/kg',
       [ProductUnit.PIECE]: '/pièce',
       [ProductUnit.LITER]: '/L',
+      [ProductUnit.BOTTLE]: '/btle',
       [ProductUnit.OTHER]: '',
     };
     return labels[unitType] ?? '';

@@ -54,9 +54,14 @@ export class BookingService {
       if (!product) {
         throw new Error(`Product not found: ${purchase.name}`);
       }
-      // The max / remaining checks move to the offer level when they are shared.
-      const overMax = sharedMax === undefined && purchase.quantity > product.maximumOrder;
-      const overRemaining = sharedRemaining === undefined && purchase.quantity > product.remainingQuantity;
+      // The max / remaining checks move to the offer level when they are shared,
+      // and don't apply at all when the manager left them empty.
+      const overMax =
+        sharedMax === undefined && product.maximumOrder != null && purchase.quantity > product.maximumOrder;
+      const overRemaining =
+        sharedRemaining === undefined &&
+        product.remainingQuantity != null &&
+        purchase.quantity > product.remainingQuantity;
       if (!purchase.quantity || purchase.quantity < product.minimumOrder || overMax || overRemaining) {
         throw new Error(`Invalid quantity for ${purchase.name}`);
       }
@@ -92,14 +97,16 @@ export class BookingService {
     } else {
       for (const purchase of purchases) {
         const product = offer.products.find((p) => p.name === purchase.name);
-        if (!product) continue;
+        // unlimited stock has nothing to count down
+        if (!product || product.remainingQuantity == null) continue;
         product.remainingQuantity = Math.max(0, product.remainingQuantity - sign * purchase.quantity);
       }
     }
 
     offer.updatedAt = Date.now();
 
-    const soldOut = offer.products.every((p) => p.remainingQuantity <= 0);
+    // A product with unlimited stock never runs out, so the offer can't sell out.
+    const soldOut = offer.products.every((p) => p.remainingQuantity != null && p.remainingQuantity <= 0);
 
     if (soldOut) {
       offer.status = OfferStatus.CLOSED;

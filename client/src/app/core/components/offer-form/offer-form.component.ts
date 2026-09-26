@@ -101,8 +101,16 @@ export interface GlobalFieldGroup {
 const GLOBAL_FIELD_GROUPS: readonly GlobalFieldGroup[] = [
   { id: 'unitType', label: "Type d'unité", fields: ['unitType'] },
   { id: 'unitPrice', label: 'Prix unitaire', fields: ['unitPrice'] },
-  { id: 'totalQuantity', label: 'Quantité disponible', fields: ['totalQuantity'] },
-  { id: 'order', label: 'Commande min / max', fields: ['minimumOrder', 'maximumOrder'] },
+  {
+    id: 'totalQuantity',
+    label: 'Quantité disponible',
+    fields: ['totalQuantity'],
+  },
+  {
+    id: 'order',
+    label: 'Commande min / max',
+    fields: ['minimumOrder', 'maximumOrder'],
+  },
 ];
 
 @Component({
@@ -236,8 +244,8 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       // New offer — set defaults
       const now = new Date();
       const today = this.toDateString(now.getTime());
-      const morning = '09:00';
-      const evening = '18:00';
+      const windowStart = '17:00';
+      const windowClose = '19:30';
       this.formValue = {
         name: '',
         description: '',
@@ -246,14 +254,14 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         products: [this.createEmptyProduct()],
         bankAccountId: '',
         pickupDate: now.getTime(),
-        pickupWindowStart: new Date(today + 'T09:00').getTime(),
-        pickupWindowEnd: new Date(today + 'T18:00').getTime(),
+        pickupWindowStart: new Date(today + 'T17:00').getTime(),
+        pickupWindowEnd: new Date(today + 'T19:30').getTime(),
       };
       this.showGlobalFields = false;
       this.selectedIcon = null;
       this.pickupDateLocal = today;
-      this.windowStartLocal = morning;
-      this.windowEndLocal = evening;
+      this.windowStartLocal = windowStart;
+      this.windowEndLocal = windowClose;
       this.autoCloseLocal = '';
     }
   }
@@ -264,18 +272,25 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
       unitPrice: undefined as unknown as number,
       unitType: ProductUnit.PIECE,
       minimumOrder: 1,
-      maximumOrder: 1,
-      totalQuantity: 1,
-      // Server-maintained; a fresh line starts fully available.
-      remainingQuantity: 1,
+      // Max / stock start empty: no per-booking cap and unlimited stock.
     };
   }
 
+  /** Adds a line pre-filled from the last one (all but the name) to speed up entry. */
   addProduct(): void {
-    this.formValue.products = [
-      ...(this.formValue.products ?? []),
-      this.createEmptyProduct(),
-    ];
+    const products = this.formValue.products ?? [];
+    const last = products.at(-1);
+    const next: Product = last
+      ? {
+          ...this.createEmptyProduct(),
+          unitPrice: last.unitPrice,
+          unitType: last.unitType,
+          minimumOrder: last.minimumOrder,
+          maximumOrder: last.maximumOrder,
+          totalQuantity: last.totalQuantity,
+        }
+      : this.createEmptyProduct();
+    this.formValue.products = [...products, next];
   }
 
   removeProduct(index: number): void {
@@ -389,13 +404,13 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         globals.unitPrice = first?.unitPrice;
         break;
       case 'totalQuantity':
-        globals.totalQuantity = first?.totalQuantity ?? 1;
+        globals.totalQuantity = first?.totalQuantity;
         break;
       case 'minimumOrder':
         globals.minimumOrder = first?.minimumOrder ?? 1;
         break;
       case 'maximumOrder':
-        globals.maximumOrder = first?.maximumOrder ?? 1;
+        globals.maximumOrder = first?.maximumOrder;
         break;
     }
   }
@@ -515,8 +530,9 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         this.errorMessage = `Un prix unitaire valide est requis (${scope('unitPrice')}).`;
         return false;
       }
-      if (!resolved.totalQuantity || resolved.totalQuantity < 1) {
-        this.errorMessage = `Une quantité valide est requise (${scope('totalQuantity')}).`;
+      // Stock and max are optional: empty means unlimited / no cap.
+      if (resolved.totalQuantity != null && resolved.totalQuantity < 1) {
+        this.errorMessage = `La quantité disponible doit être d'au moins 1, ou rester vide (${scope('totalQuantity')}).`;
         return false;
       }
       if (!resolved.minimumOrder || resolved.minimumOrder <= 0) {
@@ -524,7 +540,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
         return false;
       }
       if (
-        !resolved.maximumOrder ||
+        resolved.maximumOrder != null &&
         resolved.maximumOrder < resolved.minimumOrder
       ) {
         this.errorMessage = `La commande maximum doit être supérieure ou égale au minimum (${scope('maximumOrder')}).`;
@@ -534,7 +550,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
 
     const globals = this.formValue.globalQuantities;
     if (globals?.isMaximumShared && globals.promotionEnabled) {
-      if (typeof globals.promotionPrice !== 'number' || globals.promotionPrice <= 0) {
+      if (globals.maximumOrder == null) {
+        this.errorMessage =
+          'La promotion nécessite une commande maximum commune.';
+        return false;
+      }
+      if (
+        typeof globals.promotionPrice !== 'number' ||
+        globals.promotionPrice <= 0
+      ) {
         this.errorMessage = 'Un prix promotionnel valide est requis.';
         return false;
       }
@@ -580,7 +604,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
           unitPrice: r.unitPrice,
           unitType: r.unitType ?? ProductUnit.PIECE,
           minimumOrder: r.minimumOrder ?? 1,
-          maximumOrder: r.maximumOrder ?? r.totalQuantity,
+          maximumOrder: r.maximumOrder,
           totalQuantity: r.totalQuantity,
         };
       }),
@@ -598,33 +622,38 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     return this.hasGlobalFields ? this.formValue.globalQuantities : undefined;
   }
 
+  /** Server payload for editing an existing offer — also sent on publish/close so unsaved edits aren't lost. */
+  private buildUpdatePayload() {
+    return {
+      name: this.formValue.name!,
+      description: this.formValue.description ?? '',
+      icon: this.selectedIcon ?? undefined,
+      globalQuantities: this.normalizedGlobalQuantities(),
+      products: (this.formValue.products ?? []).map((p) => {
+        const r = this.resolveProduct(p);
+        return {
+          name: r.name,
+          unitPrice: r.unitPrice,
+          unitType: r.unitType,
+          minimumOrder: r.minimumOrder,
+          maximumOrder: r.maximumOrder,
+          totalQuantity: r.totalQuantity,
+        };
+      }),
+      bankAccountId: normalizeBankAccountId(this.formValue.bankAccountId),
+      pickupDate: this.formValue.pickupDate!,
+      pickupWindowStart: this.formValue.pickupWindowStart!,
+      pickupWindowEnd: this.formValue.pickupWindowEnd!,
+      autoCloseAt: this.formValue.autoCloseAt ?? null,
+    };
+  }
+
   private updateExisting(): void {
     const uuid = this.offer!.uuid;
 
     this.socketService.emit('updateOffer', {
       uuid,
-      offerData: {
-        name: this.formValue.name!,
-        description: this.formValue.description ?? '',
-        icon: this.selectedIcon ?? undefined,
-        globalQuantities: this.normalizedGlobalQuantities(),
-        products: (this.formValue.products ?? []).map((p) => {
-          const r = this.resolveProduct(p);
-          return {
-            name: r.name,
-            unitPrice: r.unitPrice,
-            unitType: r.unitType,
-            minimumOrder: r.minimumOrder,
-            maximumOrder: r.maximumOrder,
-            totalQuantity: r.totalQuantity,
-          };
-        }),
-        bankAccountId: normalizeBankAccountId(this.formValue.bankAccountId),
-        pickupDate: this.formValue.pickupDate!,
-        pickupWindowStart: this.formValue.pickupWindowStart!,
-        pickupWindowEnd: this.formValue.pickupWindowEnd!,
-        autoCloseAt: this.formValue.autoCloseAt ?? null,
-      },
+      offerData: this.buildUpdatePayload(),
     });
 
     let settled = false;
@@ -687,7 +716,10 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
   /** Scrolls a conditionally-rendered section into view once it has been rendered. */
   private scrollIntoView(ref: () => ElementRef<HTMLElement> | undefined): void {
     setTimeout(() => {
-      ref()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      ref()?.nativeElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     });
   }
 
@@ -708,11 +740,17 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Publishes an already-created DRAFT offer. */
   private publishExisting(uuid: string, notifySubscribers: boolean): void {
+    if (!this.validateForm()) return;
+
     this.isPublishing = true;
     this.errorMessage = null;
     let settled = false;
 
-    this.socketService.emit('publishOffer', { uuid, notifySubscribers });
+    this.socketService.emit('publishOffer', {
+      uuid,
+      notifySubscribers,
+      offerData: this.buildUpdatePayload(),
+    });
 
     this._publishSub = this.socketService.on<Offer>('OfferUpdated').subscribe({
       next: (serverOffer) => {
@@ -798,6 +836,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
 
   closeOffer(notifyCustomers: boolean): void {
     if (!this.offer?.uuid || this.isClosing) return;
+    if (!this.validateForm()) return;
 
     this.isClosing = true;
     this.errorMessage = null;
@@ -807,6 +846,7 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     this.socketService.emit('closeOffer', {
       uuid: offerUuid,
       notifyCustomers,
+      offerData: this.buildUpdatePayload(),
     });
 
     this._closeSub = this.socketService.on<Offer>('OfferUpdated').subscribe({

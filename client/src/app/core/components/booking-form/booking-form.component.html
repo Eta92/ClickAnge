@@ -37,7 +37,7 @@
               <p class="summary-description">{{ offer.description }}</p>
             }
             <p class="summary-pickup">
-              Retrait le {{ offer.pickupDate | date: "EEE d MMM" }} entre
+              Retrait le {{ offer.pickupDate | date: "EEEE d MMM" }} entre
               {{ offer.pickupWindowStart | date: "HH:mm" }} et
               {{ offer.pickupWindowEnd | date: "HH:mm" }}
             </p>
@@ -73,10 +73,10 @@
                 <span class="product-select-meta">
                   {{ product.unitPrice }}€ {{ getUnitLabel(product.unitType) }}
                   @if (!readonly) {
-                    @if (!isTotalShared) {
+                    @if (!isTotalShared && product.remainingQuantity != null) {
                       · {{ product.remainingQuantity }} disponible(s)
                     }
-                    @if (!isMaximumShared) {
+                    @if (!isMaximumShared && product.maximumOrder != null) {
                       · ({{ product.maximumOrder }} max)
                     }
                   }

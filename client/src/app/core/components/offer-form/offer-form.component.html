@@ -124,6 +124,7 @@
                 <option [ngValue]="ProductUnit.PIECE">Pièce</option>
                 <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
                 <option [ngValue]="ProductUnit.LITER">Litre</option>
+                <option [ngValue]="ProductUnit.BOTTLE">Bouteille</option>
                 <option [ngValue]="ProductUnit.OTHER">Autre</option>
               </select>
             </label>
@@ -149,7 +150,7 @@
                 name="globalTotalQuantity"
                 [(ngModel)]="formValue.globalQuantities!.totalQuantity"
                 min="1"
-                required
+                placeholder="Illimité"
               />
             </label>
             <label class="global-field-check global-field-check--behavior">
@@ -182,7 +183,7 @@
                   [(ngModel)]="formValue.globalQuantities!.maximumOrder"
                   min="0"
                   step="any"
-                  required
+                  placeholder="Aucun"
                 />
               </div>
             </label>
@@ -277,6 +278,7 @@
                     <option [ngValue]="ProductUnit.PIECE">Pièce</option>
                     <option [ngValue]="ProductUnit.KILOGRAM">Kilogramme</option>
                     <option [ngValue]="ProductUnit.LITER">Litre</option>
+                    <option [ngValue]="ProductUnit.BOTTLE">Bouteille</option>
                     <option [ngValue]="ProductUnit.OTHER">Autre</option>
                   </select>
                 </label>
@@ -307,7 +309,7 @@
                       name="productTotalQuantity{{ $index }}"
                       [(ngModel)]="product.totalQuantity"
                       min="1"
-                      required
+                      placeholder="Illimité"
                     />
                   </label>
                 }
@@ -330,7 +332,7 @@
                         [(ngModel)]="product.maximumOrder"
                         min="0"
                         step="any"
-                        required
+                        placeholder="Aucun"
                       />
                     </div>
                   </label>

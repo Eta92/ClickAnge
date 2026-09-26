@@ -30,9 +30,11 @@ export interface ProductQuantity {
   unitPrice: number;
   unitType: ProductUnit;
   minimumOrder: number;
-  maximumOrder: number;
-  totalQuantity: number;
-  remainingQuantity: number;
+  // Left empty by the manager = no per-booking cap.
+  maximumOrder?: number;
+  // Left empty by the manager = unlimited stock; remainingQuantity is then absent too.
+  totalQuantity?: number;
+  remainingQuantity?: number;
 }
 
 /**
@@ -80,5 +82,6 @@ export enum ProductUnit {
   KILOGRAM = 'kilogramme',
   PIECE = 'pièce',
   LITER = 'litre',
+  BOTTLE = 'bouteille',
   OTHER = 'autre',
 }

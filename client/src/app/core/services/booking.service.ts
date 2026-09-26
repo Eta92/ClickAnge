@@ -99,10 +99,19 @@ export class BookingService {
     if (quantity < product.minimumOrder) {
       return `${product.name} : quantité minimum ${product.minimumOrder}.`;
     }
-    if (!opts.skipMax && quantity > product.maximumOrder) {
+    // An empty max / stock means no limit, so those checks are skipped.
+    if (
+      !opts.skipMax &&
+      product.maximumOrder != null &&
+      quantity > product.maximumOrder
+    ) {
       return `${product.name} : quantité maximum ${product.maximumOrder}.`;
     }
-    if (!opts.skipRemaining && quantity > product.remainingQuantity) {
+    if (
+      !opts.skipRemaining &&
+      product.remainingQuantity != null &&
+      quantity > product.remainingQuantity
+    ) {
       return `${product.name} : seulement ${product.remainingQuantity} disponible(s).`;
     }
     return null;
