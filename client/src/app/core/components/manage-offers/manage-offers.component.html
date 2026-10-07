@@ -1,0 +1,243 @@
+<!-- Manage Offers Modal — grouped publish / close / archive -->
+<div class="modal-backdrop" (click)="cancel()"></div>
+
+<div
+  class="manage-modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="manage-offers-title"
+>
+  @if (pendingAction(); as action) {
+    <!-- ── Confirmation step ── -->
+    <div class="modal-header">
+      <button
+        type="button"
+        class="btn-back"
+        [disabled]="submitting()"
+        (click)="backToSelection()"
+      >
+        ← Retour
+      </button>
+      <h2 id="manage-offers-title">{{ actionTitles[action] }}</h2>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Fermer"
+        [disabled]="submitting()"
+        (click)="cancel()"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <p class="confirm-summary">
+        {{ preview().length }} offre{{ preview().length > 1 ? "s" : "" }}
+        passera{{ preview().length > 1 ? "ont" : "" }} au statut
+        <strong>{{ statusLabels[preview()[0].target] }}</strong>.
+      </p>
+
+      @if (warningCount() > 0) {
+        <p class="warning-banner" role="alert">
+          ⚠️ {{ warningCount() }} point{{ warningCount() > 1 ? "s" : "" }} à
+          vérifier avant de confirmer.
+        </p>
+      }
+
+      <ul class="preview-list">
+        @for (item of preview(); track item.offer.uuid) {
+          <li class="preview-item" [class.has-warning]="item.warnings.length">
+            <div class="preview-head">
+              <span class="preview-name">{{ item.offer.name }}</span>
+              <span class="preview-transition">
+                {{ statusLabels[item.offer.status] }} →
+                {{ statusLabels[item.target] }}
+              </span>
+            </div>
+            @for (warning of item.warnings; track warning) {
+              <p class="preview-warning">⚠️ {{ warning }}</p>
+            }
+          </li>
+        }
+      </ul>
+
+      @if (action === "archive") {
+        <p class="email-note">Aucun e-mail ne sera envoyé.</p>
+      } @else {
+        <label class="notify-toggle">
+          <input
+            type="checkbox"
+            [checked]="notify()"
+            [disabled]="submitting()"
+            (change)="onNotifyChange($event)"
+          />
+          @if (action === "publish") {
+            Envoyer un e-mail groupé à tous les membres abonnés
+          } @else {
+            Envoyer un e-mail de confirmation groupé aux clients ayant réservé
+          }
+        </label>
+        @if (sendsEmail()) {
+          <p class="email-note">
+            @if (action === "publish") {
+              Chaque membre reçoit un seul e-mail présentant toutes ces offres.
+            } @else {
+              Chaque client reçoit un seul e-mail, avec uniquement les offres
+              sur lesquelles il a réservé.
+            }
+          </p>
+          @if (message().trim()) {
+            <div class="message-preview">
+              <span class="message-preview-label">Votre message</span>
+              <p>{{ message().trim() }}</p>
+            </div>
+          }
+        }
+      }
+
+      @if (errorMessage()) {
+        <p class="error-message" role="alert">{{ errorMessage() }}</p>
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="submitting()"
+        (click)="backToSelection()"
+      >
+        Retour
+      </button>
+      <button
+        type="button"
+        class="btn-confirm"
+        [class.danger]="action !== 'publish'"
+        [disabled]="countdown() > 0 || submitting()"
+        (click)="confirm()"
+      >
+        @if (submitting()) {
+          En cours…
+        } @else if (countdown() > 0) {
+          Confirmer ({{ countdown() }})
+        } @else {
+          Confirmer
+        }
+      </button>
+    </div>
+  } @else {
+    <!-- ── Selection step ── -->
+    <div class="modal-header">
+      <h2 id="manage-offers-title">Gérer les offres</h2>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Fermer"
+        (click)="cancel()"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="quick-select" aria-label="Sélection rapide">
+        <span class="quick-select-label">Sélectionner :</span>
+        <button type="button" (click)="selectStatus(OfferStatus.DRAFT)">
+          Brouillons
+        </button>
+        <button type="button" (click)="selectStatus(OfferStatus.OPEN)">
+          Ouvertes
+        </button>
+        <button type="button" (click)="selectStatus(OfferStatus.CLOSED)">
+          Fermées
+        </button>
+        <button
+          type="button"
+          [disabled]="selectedOffers().length === 0"
+          (click)="clearSelection()"
+        >
+          Aucune
+        </button>
+      </div>
+
+      @if (listedOffers().length === 0) {
+        <p class="empty-state">Aucune offre pour le moment.</p>
+      } @else {
+        <ul class="offer-select-list">
+          @for (offer of listedOffers(); track offer.uuid) {
+            <li>
+              <label class="offer-select-row" [class.selected]="isSelected(offer)">
+                <input
+                  type="checkbox"
+                  [checked]="isSelected(offer)"
+                  (change)="toggle(offer)"
+                />
+                <span class="offer-select-text">
+                  <span class="offer-select-name">{{ offer.name }}</span>
+                  <span class="offer-select-meta">
+                    Retrait le {{ offer.pickupDate | date: "EEE d MMM" }}
+                  </span>
+                </span>
+                <span
+                  class="offer-status-label"
+                  [class.status-draft]="offer.status === OfferStatus.DRAFT"
+                  [class.status-open]="offer.status === OfferStatus.OPEN"
+                  [class.status-closed]="offer.status === OfferStatus.CLOSED"
+                  [class.status-completed]="
+                    offer.status === OfferStatus.COMPLETED
+                  "
+                >
+                  {{ statusLabels[offer.status] }}
+                </span>
+              </label>
+            </li>
+          }
+        </ul>
+      }
+
+      <label class="message-label" for="manage-offers-message">
+        Informations complémentaires
+        <span class="hint">ajoutées à l'e-mail envoyé pour toutes ces offres</span>
+      </label>
+      <textarea
+        id="manage-offers-message"
+        rows="4"
+        maxlength="2000"
+        placeholder="Ex. : retrait exceptionnel à la ferme, pensez à vos sacs…"
+        [value]="message()"
+        (input)="onMessageInput($event)"
+      ></textarea>
+    </div>
+
+    <div class="modal-footer actions">
+      <span class="selection-count">
+        {{ selectedOffers().length }} offre{{ selectedOffers().length > 1 ? "s" : "" }}
+        sélectionnée{{ selectedOffers().length > 1 ? "s" : "" }}
+      </span>
+      <button
+        type="button"
+        class="btn-action publish"
+        [disabled]="selectedOffers().length === 0"
+        (click)="askConfirmation('publish')"
+      >
+        Publier toutes les offres
+      </button>
+      <button
+        type="button"
+        class="btn-action close"
+        [disabled]="selectedOffers().length === 0"
+        (click)="askConfirmation('close')"
+      >
+        Fermer toutes les offres
+      </button>
+      <button
+        type="button"
+        class="btn-action archive"
+        [disabled]="selectedOffers().length === 0"
+        (click)="askConfirmation('archive')"
+      >
+        Archiver toutes les offres
+      </button>
+    </div>
+  }
+</div>

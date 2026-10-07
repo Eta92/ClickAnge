@@ -57,6 +57,20 @@ export const styles = {
     lineHeight: '1.3',
     margin: '16px 0 4px',
   },
+  h2: {
+    color: palette.green,
+    fontSize: '18px',
+    fontWeight: 700,
+    lineHeight: '1.3',
+    margin: '0 0 4px',
+  },
+  // free text typed by the manager (see ManagerMessage)
+  message: {
+    color: palette.ink,
+    fontSize: '15px',
+    lineHeight: '1.6',
+    margin: '12px 0',
+  },
   text: {
     color: palette.ink,
     fontSize: '15px',

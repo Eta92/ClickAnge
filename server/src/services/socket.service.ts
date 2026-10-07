@@ -12,7 +12,7 @@ import { CreateOfferInput, OfferService } from './offer.service';
 import { MongoService } from './mongo.service';
 
 // How often to check for offers whose auto-close date has been reached.
-const AUTO_CLOSE_CHECK_INTERVAL_MS = 10_60_000;
+const AUTO_CLOSE_CHECK_INTERVAL_MS = 10 * 60_000;
 
 export class SocketService {
   public static io: SocketServer;
@@ -88,9 +88,7 @@ export class SocketService {
           try {
             // A producer's offer always lands as a draft: putting one in front
             // of customers — and mailing them about it — stays a manager's call.
-            const input = socketHasRole(socket, Role.MANAGER)
-              ? offerData
-              : { ...offerData, publish: false, notifySubscribers: false };
+            const input = socketHasRole(socket, Role.MANAGER) ? offerData : { ...offerData, publish: false, notifySubscribers: false };
             const offer = await OfferService.createOffer(this.io, input);
             socket.emit('OfferCreated', offer);
           } catch (err: any) {
@@ -138,7 +136,43 @@ export class SocketService {
       socket.on('closeOffer', async (data: { uuid: string; notifyCustomers: boolean; offerData?: Partial<Offer> }) => {
         if (requiredRole(Role.MANAGER, socket)) {
           try {
-            await this.closeOfferWithSideEffects(data.uuid, data.notifyCustomers, data.offerData);
+            await this.closeOffersWithSideEffects([data.uuid], data.notifyCustomers, undefined, data.offerData);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      // ---- grouped actions from the manager's "Gérer les offres" panel ----
+      // Each answers with OffersBulkDone once the statuses are saved; emails go out afterwards.
+
+      socket.on('publishOffers', async (data: BulkOfferActionInput) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const offers = await OfferService.publishOffers(this.io, parseUuids(data), !!data?.notify, parseMessage(data));
+            socket.emit('OffersBulkDone', { action: 'publish', count: offers.length });
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      socket.on('closeOffers', async (data: BulkOfferActionInput) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const offers = await this.closeOffersWithSideEffects(parseUuids(data), !!data?.notify, parseMessage(data));
+            socket.emit('OffersBulkDone', { action: 'close', count: offers.length });
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      socket.on('archiveOffers', async (data: BulkOfferActionInput) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const offers = await OfferService.archiveOffers(this.io, parseUuids(data));
+            socket.emit('OffersBulkDone', { action: 'archive', count: offers.length });
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
           }
@@ -254,25 +288,22 @@ export class SocketService {
         }
       );
 
-      socket.on(
-        'updateBookingDetails',
-        async (data: { bookingUuid: string; note?: string; paymentMethod?: PaymentMethod }) => {
-          if (requiredRole(Role.USER, socket)) {
-            try {
-              const booking = await BookingService.updateBookingDetails(
-                data.bookingUuid,
-                socket.data.email,
-                data.note ?? '',
-                data.paymentMethod
-              );
-              socket.emit('BookingCreated', booking);
-            } catch (err: any) {
-              console.error('Error updating booking details:', err);
-              socket.emit('ToasterError', err.message);
-            }
+      socket.on('updateBookingDetails', async (data: { bookingUuid: string; note?: string; paymentMethod?: PaymentMethod }) => {
+        if (requiredRole(Role.USER, socket)) {
+          try {
+            const booking = await BookingService.updateBookingDetails(
+              data.bookingUuid,
+              socket.data.email,
+              data.note ?? '',
+              data.paymentMethod
+            );
+            socket.emit('BookingCreated', booking);
+          } catch (err: any) {
+            console.error('Error updating booking details:', err);
+            socket.emit('ToasterError', err.message);
           }
         }
-      );
+      });
 
       // ================================
       // ==== CUSTOMER EMAIL VERIFICATION ====
@@ -383,29 +414,72 @@ export class SocketService {
     }
   }
 
-  private static async closeOfferWithSideEffects(
-    uuid: string,
+  // closes the offers, locks in their live bookings, and optionally sends each booker one
+  // confirmation covering every closed offer they booked on (in the background — throttled).
+  // `changes` carries unsaved form edits from the single-offer form.
+  private static async closeOffersWithSideEffects(
+    uuids: Array<string>,
     notifyCustomers: boolean,
+    message?: string,
     changes?: Partial<Offer>
-  ): Promise<void> {
-    const offer = await OfferService.closeOffer(this.io, uuid, changes);
-    if (!offer) return;
-
-    await BookingService.confirmActiveBookingsForOffer(offer.uuid);
-    if (notifyCustomers) {
-      const bookings = BookingService.getBookingsForOffer(uuid).filter((b) => b.status !== BookingStatus.CANCELLED);
-      await CustomerService.notifyBookingConfirmed(offer, bookings);
+  ): Promise<Array<Offer>> {
+    const offers: Array<Offer> = [];
+    for (const uuid of uuids) {
+      const offer = await OfferService.closeOffer(this.io, uuid, changes);
+      if (!offer) continue;
+      await BookingService.confirmActiveBookingsForOffer(offer.uuid);
+      offers.push(offer);
     }
+
+    if (notifyCustomers && offers.length > 0) {
+      const bookings = offers
+        .flatMap((offer) => BookingService.getBookingsForOffer(offer.uuid))
+        .filter((b) => b.status !== BookingStatus.CANCELLED);
+      // snapshots, so later edits don't change the mails mid-batch
+      CustomerService.notifyBookingConfirmed(structuredClone(offers), structuredClone(bookings), message).catch((err) =>
+        console.error(`Confirmation of ${offers.map((o) => o.uuid).join(', ')} failed:`, err)
+      );
+    }
+    return offers;
   }
 
+  // offers reaching their auto-close time together are closed as one batch, so a
+  // customer who booked on several gets a single confirmation
   private static async checkAutoCloseOffers(): Promise<void> {
-    for (const offer of OfferService.getOffersDueForAutoClose()) {
-      try {
-        console.log(`Auto-closing offer ${offer.uuid} (autoCloseAt reached)`);
-        await this.closeOfferWithSideEffects(offer.uuid, true);
-      } catch (err) {
-        console.error(`Failed to auto-close offer ${offer.uuid}:`, err);
-      }
+    const due = OfferService.getOffersDueForAutoClose();
+    if (due.length === 0) return;
+    try {
+      console.log(`Auto-closing offers ${due.map((o) => o.uuid).join(', ')} (autoCloseAt reached)`);
+      await this.closeOffersWithSideEffects(
+        due.map((o) => o.uuid),
+        true
+      );
+    } catch (err) {
+      console.error(`Failed to auto-close offers ${due.map((o) => o.uuid).join(', ')}:`, err);
     }
   }
+}
+
+interface BulkOfferActionInput {
+  uuids: Array<string>;
+  notify?: boolean;
+  message?: string;
+}
+
+const MAX_BULK_OFFERS = 50;
+const MAX_MESSAGE_LENGTH = 2000;
+
+// distinct offer uuids from a grouped-action payload; rejects anything malformed
+function parseUuids(data: BulkOfferActionInput): Array<string> {
+  const uuids = Array.isArray(data?.uuids) ? data.uuids.filter((uuid) => typeof uuid === 'string' && uuid.length > 0) : [];
+  const distinct = Array.from(new Set(uuids));
+  if (distinct.length === 0) throw new Error('Aucune offre sélectionnée');
+  if (distinct.length > MAX_BULK_OFFERS) throw new Error(`${MAX_BULK_OFFERS} offres maximum par action`);
+  return distinct;
+}
+
+// the manager's free-text addition to the email, trimmed; undefined when empty
+function parseMessage(data: BulkOfferActionInput): string | undefined {
+  const message = typeof data?.message === 'string' ? data.message.trim() : '';
+  return message ? message.slice(0, MAX_MESSAGE_LENGTH) : undefined;
 }

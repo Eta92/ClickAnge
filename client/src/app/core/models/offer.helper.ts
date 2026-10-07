@@ -104,3 +104,11 @@ export function normalizeBankAccountId(raw?: string | null): string {
 export function bankAccountGroups(raw?: string | null): string[] {
   return normalizeBankAccountId(raw).match(/.{1,4}/g) ?? [];
 }
+
+/** Sort comparator: most recently created offer first. */
+export function newestOfferFirst(
+  a: Pick<Offer, 'createdAt'>,
+  b: Pick<Offer, 'createdAt'>,
+): number {
+  return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+}

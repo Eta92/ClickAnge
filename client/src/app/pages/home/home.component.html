@@ -48,9 +48,16 @@
     @if (canManageOffers) {
       <div class="section-title-row">
         <h2 class="section-title">Toutes les offres</h2>
-        <button class="btn-create-offer" (click)="onCreateOffer()">
-          + Nouvelle offre
-        </button>
+        <div class="section-title-actions">
+          @if (isManager) {
+            <button class="btn-manage-offers" (click)="openManageOffers()">
+              Gérer les offres
+            </button>
+          }
+          <button class="btn-create-offer" (click)="onCreateOffer()">
+            + Nouvelle offre
+          </button>
+        </div>
       </div>
     } @else {
       <h2 class="section-title">Offres Disponibles</h2>
@@ -268,6 +275,16 @@
     (cancelled)="onCreateOfferChoiceCancelled()"
   >
   </app-create-offer-choice>
+}
+
+<!-- Manage offers modal (manager only) -->
+@if (showManageOffers) {
+  <app-manage-offers
+    [offers]="offers"
+    (done)="onManageOffersDone($event)"
+    (cancelled)="closeManageOffers()"
+  >
+  </app-manage-offers>
 }
 
 <!-- Login modal -->

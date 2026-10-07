@@ -85,3 +85,14 @@ export enum ProductUnit {
   BOTTLE = 'bouteille',
   OTHER = 'autre',
 }
+
+/** Grouped actions from the manager's "Gérer les offres" panel. */
+export type BulkOfferAction = 'publish' | 'close' | 'archive';
+
+export interface BulkOfferResult {
+  action: BulkOfferAction;
+  /** Offers whose status was changed. */
+  count: number;
+  /** Whether a grouped email is being sent. */
+  notified: boolean;
+}

@@ -9,7 +9,12 @@ import {
 import { Observable, Subject, Subscription, firstValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Booking, PaymentMethod, Purchase } from '../models/booking.model';
-import { Offer, Product } from '../models/offer.model';
+import {
+  BulkOfferAction,
+  BulkOfferResult,
+  Offer,
+  Product,
+} from '../models/offer.model';
 import { CustomerProfile } from '../models/customer-profile.model';
 import { SocketService } from '../socket/socket.service';
 
@@ -385,6 +390,49 @@ export class BookingService {
       };
 
       this._socket.on<Offer>('OfferStatusChanged').subscribe(handler);
+    });
+  }
+
+  /**
+   * Runs a grouped publish / close / archive on several offers (manager only).
+   * Resolves once the server has saved the new statuses — the grouped email,
+   * when requested, keeps going out in the background after that.
+   */
+  runBulkOfferAction(
+    action: BulkOfferAction,
+    uuids: Array<string>,
+    notify: boolean,
+    message: string,
+  ): Observable<BulkOfferResult> {
+    const events: Record<BulkOfferAction, string> = {
+      publish: 'publishOffers',
+      close: 'closeOffers',
+      archive: 'archiveOffers',
+    };
+    return new Observable<BulkOfferResult>((subscriber) => {
+      const timeout = setTimeout(() => {
+        subscriber.error(new Error('Le serveur ne répond pas. Réessayez.'));
+      }, 15000);
+
+      const success = this._socket
+        .on<{ action: BulkOfferAction; count: number }>('OffersBulkDone')
+        .subscribe((result) => {
+          if (result.action !== action) return;
+          subscriber.next({ ...result, notified: notify && action !== 'archive' });
+          subscriber.complete();
+        });
+
+      const failure = this._socket
+        .on<string>('ToasterError')
+        .subscribe((errorMessage) => subscriber.error(new Error(errorMessage)));
+
+      this._socket.emit(events[action], { uuids, notify, message });
+
+      return () => {
+        clearTimeout(timeout);
+        success.unsubscribe();
+        failure.unsubscribe();
+      };
     });
   }
 

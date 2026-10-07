@@ -147,7 +147,7 @@ export class OfferService {
     io?.emit('OfferUpdated', offer);
 
     if (data.publish && data.notifySubscribers) {
-      await CustomerService.notifySubscribers(offer);
+      this.notifySubscribersInBackground([offer]);
     }
 
     return offer;
@@ -261,6 +261,15 @@ export class OfferService {
     return offer;
   }
 
+  // the announcement is throttled to Resend's rate limit, so a large list takes a
+  // while — don't hold the manager's request open until the last email is out.
+  // A snapshot is sent so later edits to the live offers don't change mails mid-batch.
+  private static notifySubscribersInBackground(offers: Array<Offer>, message?: string): void {
+    CustomerService.notifySubscribers(structuredClone(offers), message).catch((err) =>
+      console.error(`Announcement of ${offers.map((o) => o.uuid).join(', ')} failed:`, err)
+    );
+  }
+
   // switches a DRAFT offer to OPEN and optionally emails subscribers an auto-generated announcement.
   // `changes` carries unsaved form edits so the announcement reflects them.
   public static async publishOffer(
@@ -269,21 +278,51 @@ export class OfferService {
     notifySubscribers: boolean,
     changes?: Partial<Offer>
   ): Promise<Offer | null> {
+    const offer = await this.openOffer(io, uuid, changes);
+    if (offer && notifySubscribers) {
+      this.notifySubscribersInBackground([offer]);
+    }
+    return offer;
+  }
+
+  // opens several offers at once (whatever their current status) and optionally
+  // announces them all in a single email per subscriber
+  public static async publishOffers(io: SocketServer, uuids: Array<string>, notifySubscribers: boolean, message?: string): Promise<Array<Offer>> {
+    const offers: Array<Offer> = [];
+    for (const uuid of uuids) {
+      const offer = await this.openOffer(io, uuid);
+      if (offer) offers.push(offer);
+    }
+    if (offers.length > 0 && notifySubscribers) {
+      this.notifySubscribersInBackground(offers, message);
+    }
+    return offers;
+  }
+
+  private static async openOffer(io: SocketServer, uuid: string, changes?: Partial<Offer>): Promise<Offer | null> {
     const offer = this.offerMap[uuid];
     if (!offer) return null;
 
     if (changes) this.applyOfferChanges(offer, changes);
+    // re-opening an already-open offer keeps its original publication date
+    if (offer.status !== OfferStatus.OPEN) offer.publishedAt = Date.now();
     offer.status = OfferStatus.OPEN;
-    offer.publishedAt = Date.now();
+    // a re-opened offer whose auto-close time has passed would shut again on the next check
+    if (offer.autoCloseAt != null && offer.autoCloseAt <= Date.now()) offer.autoCloseAt = undefined;
     offer.updatedAt = Date.now();
     await MongoService.upsertOffer(offer);
     io?.emit('OfferUpdated', offer);
-
-    if (notifySubscribers) {
-      await CustomerService.notifySubscribers(offer);
-    }
-
     return offer;
+  }
+
+  // switches offers to COMPLETED — never sends any email
+  public static async archiveOffers(io: SocketServer, uuids: Array<string>): Promise<Array<Offer>> {
+    const offers: Array<Offer> = [];
+    for (const uuid of uuids) {
+      const offer = await this.updateOfferStatus(io, uuid, OfferStatus.COMPLETED);
+      if (offer) offers.push(offer);
+    }
+    return offers;
   }
 
   // switches an OPEN offer to CLOSED — booking-confirmation emails (if any) are sent by the caller.

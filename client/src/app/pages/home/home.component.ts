@@ -10,9 +10,15 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Booking, BookingStatus } from '../../core/models/booking.model';
 import { CustomerProfile } from '../../core/models/customer-profile.model';
 import { Member, Role } from '../../core/models/customer.model';
-import { Offer, OfferStatus, ProductUnit } from '../../core/models/offer.model';
+import {
+  BulkOfferResult,
+  Offer,
+  OfferStatus,
+  ProductUnit,
+} from '../../core/models/offer.model';
 import {
   isTotalQuantityShared,
+  newestOfferFirst,
   sharedRemainingQuantity,
 } from '../../core/models/offer.helper';
 import { LoginService } from '../../core/auth/login.service';
@@ -61,6 +67,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // create-offer choice modal state (manager only)
   showCreateOfferChoice = false;
+
+  // grouped publish / close / archive modal state (manager only)
+  showManageOffers = false;
 
   // profile edit modal state
   showEditProfile = false;
@@ -136,8 +145,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.bookingService.bookings();
   }
 
+  /** Every offer on the page, most recently created first. */
   get displayedOffers(): Array<Offer> {
-    if (this.canManageOffers) return this.offers;
+    if (this.canManageOffers) return [...this.offers].sort(newestOfferFirst);
     const shown = new Set(this.offers.map((o) => o.uuid));
     const booked: Array<Offer> = [];
     for (const booking of this.myBookings) {
@@ -147,8 +157,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       shown.add(offer.uuid);
       booked.push(offer);
     }
-    booked.sort((a, b) => b.pickupDate - a.pickupDate);
-    return [...this.offers, ...booked];
+    return [...this.offers, ...booked].sort(newestOfferFirst);
   }
 
   private loadOffers(): void {
@@ -477,5 +486,30 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onOfferCancelled(): void {
     this.showOfferForm = false;
+  }
+
+  openManageOffers(): void {
+    this.showManageOffers = true;
+  }
+
+  closeManageOffers(): void {
+    this.showManageOffers = false;
+  }
+
+  onManageOffersDone(result: BulkOfferResult): void {
+    this.showManageOffers = false;
+    const plural = result.count > 1 ? 's' : '';
+    const done: Record<BulkOfferResult['action'], string> = {
+      publish: `publiée${plural}`,
+      close: `fermée${plural}`,
+      archive: `archivée${plural}`,
+    };
+    this.toastr.success(
+      result.notified ? "Les e-mails sont en cours d'envoi." : '',
+      `${result.count} offre${plural} ${done[result.action]}`,
+    );
+    // fired from the socket ack, outside Angular's zone — refresh the view explicitly
+    this.cdr.detectChanges();
+    this.loadOffers();
   }
 }

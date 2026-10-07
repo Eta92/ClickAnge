@@ -1,5 +1,6 @@
 import { randomInt } from 'crypto';
 import { nanoid } from 'nanoid';
+import { ConfirmedOrder } from '../emails/BookingConfirmed';
 import { Booking } from '../models/booking.model';
 import { AuthenticatedProfile, Customer, Member, Role } from '../models/customer.model';
 import { Offer } from '../models/offer.model';
@@ -97,10 +98,10 @@ export class CustomerService {
     return toAuthenticatedProfile({ ...customer!, role, emailVerified: true });
   }
 
-  // emails every subscribed, verified customer about a newly published offer
-  public static async notifySubscribers(offer: Offer): Promise<void> {
+  // emails every subscribed, verified customer one announcement covering all the given offers
+  public static async notifySubscribers(offers: Array<Offer>, message?: string): Promise<void> {
     const subscribers = await MongoService.getSubscribedCustomers();
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       subscribers.map(async (customer) => {
         // older customers may not have a resignation code yet — assign one lazily
         if (!customer.resignationCode) {
@@ -109,12 +110,14 @@ export class CustomerService {
         }
         return EmailService.sendOfferPublished({
           to: customer.email,
-          offer,
+          offers,
+          message,
           customerName: customer.name,
           resignationCode: customer.resignationCode,
         });
       })
     );
+    this.logBulkSend(`announcement of ${offers.map((o) => `"${o.name}"`).join(', ')}`, results);
   }
 
   // finds the customer matching the unsubscribe link's code and turns off their subscription
@@ -129,32 +132,49 @@ export class CustomerService {
     return updated;
   }
 
-  // emails subscribed customers with a booking on the now-closed offer that their pickup is confirmed
-  public static async notifyBookingConfirmed(offer: Offer, bookings: Array<Booking>): Promise<void> {
-    const bookingsByEmail = new Map<string, Array<Booking>>();
-    for (const booking of bookings) {
-      const list = bookingsByEmail.get(booking.customerEmail) ?? [];
-      list.push(booking);
-      bookingsByEmail.set(booking.customerEmail, list);
+  // emails each subscribed customer with a live booking on the now-closed offers one confirmation,
+  // listing only the offers they actually booked on
+  public static async notifyBookingConfirmed(offers: Array<Offer>, bookings: Array<Booking>, message?: string): Promise<void> {
+    const ordersByEmail = new Map<string, Array<ConfirmedOrder>>();
+    for (const offer of offers) {
+      const bookingsByEmail = new Map<string, Array<Booking>>();
+      for (const booking of bookings) {
+        if (booking.offerId !== offer.uuid) continue;
+        const list = bookingsByEmail.get(booking.customerEmail) ?? [];
+        list.push(booking);
+        bookingsByEmail.set(booking.customerEmail, list);
+      }
+      for (const [email, customerBookings] of bookingsByEmail) {
+        const orders = ordersByEmail.get(email) ?? [];
+        orders.push({ offer, bookings: customerBookings });
+        ordersByEmail.set(email, orders);
+      }
     }
 
-    await Promise.allSettled(
-      Array.from(bookingsByEmail.entries()).map(async ([email, customerBookings]) => {
-        const customer = await MongoService.getCustomerByEmail(email);
-        if (!customer || !customer.isSubscribed) return;
-        // older customers may not have a resignation code yet — assign one lazily
-        if (!customer.resignationCode) {
-          customer.resignationCode = nanoid(16);
-          await MongoService.upsertCustomer(customer);
-        }
-        return EmailService.sendBookingConfirmed({
-          to: email,
-          offer,
-          bookings: customerBookings,
-          customerName: customer.name,
-          resignationCode: customer.resignationCode,
-        });
-      })
+    const customers = await MongoService.getCustomersByEmails(Array.from(ordersByEmail.keys()));
+    const results = await Promise.allSettled(
+      customers
+        .filter((customer) => customer.isSubscribed)
+        .map(async (customer) => {
+          // older customers may not have a resignation code yet — assign one lazily
+          if (!customer.resignationCode) {
+            customer.resignationCode = nanoid(16);
+            await MongoService.upsertCustomer(customer);
+          }
+          return EmailService.sendBookingConfirmed({
+            to: customer.email,
+            orders: ordersByEmail.get(customer.email)!,
+            message,
+            customerName: customer.name,
+            resignationCode: customer.resignationCode,
+          });
+        })
     );
+    this.logBulkSend(`confirmation of ${offers.map((o) => `"${o.name}"`).join(', ')}`, results);
+  }
+
+  private static logBulkSend(label: string, results: Array<PromiseSettledResult<void>>): void {
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    console.log(`[email] ${label}: ${results.length - failed} sent, ${failed} failed`);
   }
 }
