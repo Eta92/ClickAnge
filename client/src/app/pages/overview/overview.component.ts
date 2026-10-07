@@ -149,9 +149,9 @@ export class OverviewComponent implements OnInit, OnDestroy {
         DateTime.fromMillis(b.confirmedAt || b.createdAt).toFormat(
           'dd/MM/yyyy HH:mm',
         ),
-        this.getBookingTotal(b).toFixed(2),
+        this.toCsvDecimal(this.getBookingTotal(b).toFixed(2)),
         ...productNames.map((name) =>
-          quantities.has(name) ? String(quantities.get(name)) : '',
+          quantities.has(name) ? this.toCsvDecimal(quantities.get(name)!) : '',
         ),
       ];
     });
@@ -168,6 +168,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
     ];
 
     // Secondary header line with totals.
+    // Numbers use a decimal comma and fields a ';' separator, as French Excel expects.
     const allBookings = this.bookings();
     const doneCount = allBookings.filter(
       (b) =>
@@ -187,11 +188,13 @@ export class OverviewComponent implements OnInit, OnDestroy {
       lastEdition
         ? DateTime.fromMillis(lastEdition).toFormat('dd/MM/yyyy HH:mm')
         : '',
-      allBookings
-        .reduce((sum, b) => sum + this.getBookingTotal(b), 0)
-        .toFixed(2),
+      this.toCsvDecimal(
+        allBookings
+          .reduce((sum, b) => sum + this.getBookingTotal(b), 0)
+          .toFixed(2),
+      ),
       ...productNames.map((name) =>
-        String(
+        this.toCsvDecimal(
           allBookings.reduce(
             (sum, b) =>
               sum +
@@ -205,7 +208,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
     ];
 
     const csv = [header, totals, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';'))
       .join('\n');
 
     const blob = new Blob(['\uFEFF' + csv], {
@@ -217,6 +220,11 @@ export class OverviewComponent implements OnInit, OnDestroy {
     a.download = `ClickAnge-${this.offer!.name}-${DateTime.now().toFormat("dd.MM.yyyy-HH'h'mm")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  /** Formats a number for the CSV export with a decimal comma ("12.50" -> "12,50"). */
+  private toCsvDecimal(value: string | number): string {
+    return String(value).replace('.', ',');
   }
 
   /** Total price to bill the customer for this booking, promotion included. */

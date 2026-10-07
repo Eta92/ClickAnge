@@ -254,17 +254,25 @@ export class SocketService {
         }
       );
 
-      socket.on('updateBookingNote', async (data: { bookingUuid: string; note?: string }) => {
-        if (requiredRole(Role.USER, socket)) {
-          try {
-            const booking = await BookingService.updateBookingNote(data.bookingUuid, socket.data.email, data.note ?? '');
-            socket.emit('BookingCreated', booking);
-          } catch (err: any) {
-            console.error('Error updating booking note:', err);
-            socket.emit('ToasterError', err.message);
+      socket.on(
+        'updateBookingDetails',
+        async (data: { bookingUuid: string; note?: string; paymentMethod?: PaymentMethod }) => {
+          if (requiredRole(Role.USER, socket)) {
+            try {
+              const booking = await BookingService.updateBookingDetails(
+                data.bookingUuid,
+                socket.data.email,
+                data.note ?? '',
+                data.paymentMethod
+              );
+              socket.emit('BookingCreated', booking);
+            } catch (err: any) {
+              console.error('Error updating booking details:', err);
+              socket.emit('ToasterError', err.message);
+            }
           }
         }
-      });
+      );
 
       // ================================
       // ==== CUSTOMER EMAIL VERIFICATION ====

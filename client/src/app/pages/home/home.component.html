@@ -40,7 +40,7 @@
 
 <!-- Main content -->
 <main class="home-main">
-  <!-- Offers section (manager sees all, customer sees open only) -->
+  <!-- Offers section (manager sees all, customer sees open + booked) -->
   <section
     class="offers-section"
     [class.full-when-empty]="myBookings.length === 0"
@@ -56,14 +56,14 @@
       <h2 class="section-title">Offres Disponibles</h2>
     }
 
-    @if (offers.length === 0) {
+    @if (displayedOffers.length === 0) {
       <p class="empty-state">
         Aucune offre disponible pour le moment. Revenez plus tard !
       </p>
     }
 
     <div class="offer-cards">
-      @for (offer of offers; track offer.uuid) {
+      @for (offer of displayedOffers; track offer.uuid) {
         <div
           class="offer-card"
           [class.draft-card]="offer.status === 0"

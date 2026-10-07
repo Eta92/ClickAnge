@@ -210,17 +210,29 @@ export class BookingService {
   }
 
   /**
-   * Updates only a booking's note. Unlike `updateBooking` this stays allowed
-   * after the offer closes, so a customer can still flag a mistake — the
-   * products and quantities are left untouched.
+   * Updates only a booking's note and payment method. Unlike `updateBooking`
+   * this stays allowed after the offer closes, so a customer can still flag a
+   * mistake or switch how they pay — the products and quantities are left
+   * untouched.
    */
-  public static async updateBookingNote(uuid: string, customerEmail: string, note: string): Promise<Booking> {
+  public static async updateBookingDetails(
+    uuid: string,
+    customerEmail: string,
+    note: string,
+    paymentMethod?: PaymentMethod
+  ): Promise<Booking> {
     const booking = this.bookingMap[uuid];
     if (!booking) throw new Error('Booking not found');
     if (booking.customerEmail !== customerEmail || booking.status === BookingStatus.CANCELLED) {
       throw new Error('Cannot update this booking');
     }
 
+    // Without its offer there is no bank account to check wire against, so
+    // the method stays as it was.
+    const offer = OfferService.offerMap[booking.offerId];
+    if (offer && paymentMethod !== undefined) {
+      booking.paymentMethod = this.resolvePaymentMethod(offer, paymentMethod);
+    }
     booking.note = note || undefined;
     booking.updatedAt = Date.now();
 

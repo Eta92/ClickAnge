@@ -46,8 +46,12 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
 
   /** Quantity selected per product, keyed by product name */
   quantities: Record<string, number> = {};
-  /** Cash unless the offer publishes a bank account and the customer picks wire. */
-  paymentMethod: PaymentMethod = PaymentMethod.CASH;
+  /**
+   * Cash unless the offer publishes a bank account and the customer picks wire.
+   * Null on a new booking when wire is on offer: the customer must pick one
+   * explicitly before the form can be submitted.
+   */
+  paymentMethod: PaymentMethod | null = PaymentMethod.CASH;
   /**
    * Short-lived feedback on the "copier" button next to the account number.
    * A signal, not a field: it is set from the clipboard promise's callback,
@@ -77,7 +81,7 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
         this.paymentMethod = this.booking.paymentMethod ?? PaymentMethod.CASH;
       } else {
         this.note = '';
-        this.paymentMethod = PaymentMethod.CASH;
+        this.paymentMethod = this.wireAvailable ? null : PaymentMethod.CASH;
       }
       // The offer may have dropped its bank account since the booking was made.
       if (this.paymentMethod === PaymentMethod.WIRE && !this.wireAvailable) {
@@ -134,8 +138,8 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     return this.wireAvailable || this.paymentMethod === PaymentMethod.WIRE;
   }
 
+  /** Payment method stays switchable in read-only mode, like the note. */
   setPaymentMethod(method: PaymentMethod): void {
-    if (this.readonly) return;
     if (method === PaymentMethod.WIRE && !this.wireAvailable) return;
     this.paymentMethod = method;
     this.flagCopied(false);
@@ -333,6 +337,11 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
       return;
     }
 
+    if (this.paymentMethod === null) {
+      this.errorMessage = 'Choisissez un mode de paiement.';
+      return;
+    }
+
     const payload: CreateBookingPayload = {
       customerEmail: profile.email,
       customerName: profile.name || undefined,
@@ -362,17 +371,23 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     });
   }
 
-  /** Whether the note differs from what's stored on the booking. */
-  get noteChanged(): boolean {
-    return this.note.trim() !== (this.booking?.note ?? '').trim();
+  /** Whether the note or payment method differs from what's stored on the booking. */
+  get detailsChanged(): boolean {
+    const storedMethod = this.booking?.paymentMethod ?? PaymentMethod.CASH;
+    return (
+      this.note.trim() !== (this.booking?.note ?? '').trim() ||
+      this.paymentMethod !== storedMethod
+    );
   }
 
   /**
    * Read-only mode still lets the customer amend the note (e.g. to flag a
-   * mistake). Products and quantities stay locked.
+   * mistake) and switch the payment method. Products and quantities stay locked.
    */
-  saveNote(): void {
-    if (!this.booking || !this.noteChanged) return;
+  saveDetails(): void {
+    if (!this.booking || !this.detailsChanged || this.paymentMethod === null) {
+      return;
+    }
 
     const profile = this.bookingService.getCustomerProfile();
     if (!profile) {
@@ -384,14 +399,18 @@ export class BookingFormComponent implements OnChanges, OnDestroy {
     this.errorMessage = null;
 
     this.submitSub = this.bookingService
-      .updateBookingNote(this.booking.uuid, this.note.trim())
+      .updateBookingDetails(
+        this.booking.uuid,
+        this.note.trim(),
+        this.paymentMethod,
+      )
       .subscribe({
         next: (updated) => {
           this.saved.emit(updated);
           this.isSubmitting = false;
         },
         error: (err) => {
-          console.error('Note update failed:', err);
+          console.error('Booking details update failed:', err);
           this.isSubmitting = false;
           this.errorMessage = 'Échec de la mise à jour. Réessayez.';
         },

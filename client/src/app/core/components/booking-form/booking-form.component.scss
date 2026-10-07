@@ -293,6 +293,13 @@
     color: #4d4f37; // green primary
   }
 
+  .payment-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--color-sage);
+  }
+
   .payment-toggle {
     display: flex;
     padding: 0.25rem;

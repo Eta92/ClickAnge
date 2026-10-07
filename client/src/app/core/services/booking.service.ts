@@ -321,18 +321,26 @@ export class BookingService {
   }
 
   /**
-   * Update only a booking's note (customer action). Stays available after the
-   * offer closes, unlike a full booking edit.
+   * Update only a booking's note and payment method (customer action). Stays
+   * available after the offer closes, unlike a full booking edit.
    */
-  updateBookingNote(bookingUuid: string, note: string): Observable<Booking> {
+  updateBookingDetails(
+    bookingUuid: string,
+    note: string,
+    paymentMethod: PaymentMethod,
+  ): Observable<Booking> {
     return new Observable<Booking>((subscriber) => {
       const timeoutSub = setTimeout(() => {
         if (!subscriber.closed) {
-          subscriber.error(new Error('No response updating note'));
+          subscriber.error(new Error('No response updating booking details'));
         }
       }, 5000);
 
-      this._socket.emit('updateBookingNote', { bookingUuid, note });
+      this._socket.emit('updateBookingDetails', {
+        bookingUuid,
+        note,
+        paymentMethod,
+      });
 
       const sub = this._socket
         .on<Booking>('BookingCreated')

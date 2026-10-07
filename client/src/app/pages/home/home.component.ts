@@ -132,9 +132,23 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadOffers();
   }
 
-  /** Reactive bookings list — sourced from BookingService signal */
   get myBookings(): Array<Booking> {
     return this.bookingService.bookings();
+  }
+
+  get displayedOffers(): Array<Offer> {
+    if (this.canManageOffers) return this.offers;
+    const shown = new Set(this.offers.map((o) => o.uuid));
+    const booked: Array<Offer> = [];
+    for (const booking of this.myBookings) {
+      const offer = booking.offer;
+      if (!offer || booking.status === BookingStatus.CANCELLED) continue;
+      if (shown.has(offer.uuid)) continue;
+      shown.add(offer.uuid);
+      booked.push(offer);
+    }
+    booked.sort((a, b) => b.pickupDate - a.pickupDate);
+    return [...this.offers, ...booked];
   }
 
   private loadOffers(): void {
@@ -334,7 +348,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!offerUuid) return;
     this._deepLinkHandled = true;
 
-    const offer = this.offers.find((o) => o.uuid === offerUuid);
+    const offer = this.displayedOffers.find((o) => o.uuid === offerUuid);
     if (offer) {
       this.onSelectOffer(offer);
     } else {
@@ -372,7 +386,9 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       );
       this.bookingFormOffer = offer;
       this.bookingFormBooking = existingBooking || null;
-      this.bookingFormReadonly = false;
+      // A booked offer that has since closed is shown too — open it read-only.
+      this.bookingFormReadonly =
+        !!existingBooking && !this.isBookingEditable(existingBooking);
       this.showBookingForm = true;
     }
   }

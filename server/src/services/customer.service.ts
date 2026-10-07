@@ -16,7 +16,7 @@ export class CustomerService {
   public static async requestVerificationCode(email: string, name?: string): Promise<void> {
     const normalizedEmail = normalizeEmail(email);
     if (!EMAIL_REGEX.test(normalizedEmail)) {
-      throw new Error('Invalid email address');
+      throw new Error('Adresse e-mail invalide');
     }
 
     // Accounts are created up-front by a manager on the members page, so an
@@ -81,7 +81,7 @@ export class CustomerService {
       customer.verificationCode === (code || '').trim();
 
     if (!isValid) {
-      throw new Error('Invalid or expired verification code');
+      throw new Error('Code invalide ou expiré. Utilisez le code du dernier e-mail reçu, ou demandez-en un nouveau.');
     }
 
     await MongoService.confirmCustomerEmail(normalizedEmail);
