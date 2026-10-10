@@ -7,6 +7,8 @@ import { Offer } from '../models/offer.model';
 import { resolveRole, toAuthenticatedProfile, toMember } from '../models/role.helper';
 import { EMAIL_REGEX, normalizeEmail } from '../helpers/member.helper';
 import { NOT_A_MEMBER_MESSAGE } from './member.service';
+import { EmailKind } from '../models/email.model';
+import { DistributionService } from './distribution.service';
 import { EmailService } from './email.service';
 import { MongoService } from './mongo.service';
 
@@ -45,7 +47,7 @@ export class CustomerService {
     };
 
     await MongoService.upsertCustomer(customer);
-    await EmailService.sendVerificationCode({ to: normalizedEmail, code });
+    await DistributionService.sendVerificationCode(normalizedEmail, code);
   }
 
   // updates the customer's editable profile fields (name, phone, subscription) — email is never changed here
@@ -98,26 +100,22 @@ export class CustomerService {
     return toAuthenticatedProfile({ ...customer!, role, emailVerified: true });
   }
 
-  // emails every subscribed, verified customer one announcement covering all the given offers
+  // queues, for every subscribed, verified customer, one announcement covering all the given offers
   public static async notifySubscribers(offers: Array<Offer>, message?: string): Promise<void> {
     const subscribers = await MongoService.getSubscribedCustomers();
-    const results = await Promise.allSettled(
-      subscribers.map(async (customer) => {
-        // older customers may not have a resignation code yet — assign one lazily
-        if (!customer.resignationCode) {
-          customer.resignationCode = nanoid(16);
-          await MongoService.upsertCustomer(customer);
-        }
-        return EmailService.sendOfferPublished({
-          to: customer.email,
+    const emails = await Promise.all(
+      subscribers.map(async (customer) => ({
+        to: customer.email,
+        rank: customer.lastConnectedAt ?? 0,
+        content: await EmailService.renderOfferPublished({
           offers,
           message,
           customerName: customer.name,
-          resignationCode: customer.resignationCode,
-        });
-      })
+          resignationCode: await this.ensureResignationCode(customer),
+        }),
+      }))
     );
-    this.logBulkSend(`announcement of ${offers.map((o) => `"${o.name}"`).join(', ')}`, results);
+    await DistributionService.enqueue(EmailKind.OFFER_PUBLISHED, `Annonce : ${offerNames(offers)}`, emails);
   }
 
   // finds the customer matching the unsubscribe link's code and turns off their subscription
@@ -132,7 +130,7 @@ export class CustomerService {
     return updated;
   }
 
-  // emails each subscribed customer with a live booking on the now-closed offers one confirmation,
+  // queues, for each subscribed customer with a live booking on the now-closed offers, one confirmation
   // listing only the offers they actually booked on
   public static async notifyBookingConfirmed(offers: Array<Offer>, bookings: Array<Booking>, message?: string): Promise<void> {
     const ordersByEmail = new Map<string, Array<ConfirmedOrder>>();
@@ -152,29 +150,34 @@ export class CustomerService {
     }
 
     const customers = await MongoService.getCustomersByEmails(Array.from(ordersByEmail.keys()));
-    const results = await Promise.allSettled(
+    const emails = await Promise.all(
       customers
         .filter((customer) => customer.isSubscribed)
-        .map(async (customer) => {
-          // older customers may not have a resignation code yet — assign one lazily
-          if (!customer.resignationCode) {
-            customer.resignationCode = nanoid(16);
-            await MongoService.upsertCustomer(customer);
-          }
-          return EmailService.sendBookingConfirmed({
-            to: customer.email,
+        .map(async (customer) => ({
+          to: customer.email,
+          rank: customer.lastConnectedAt ?? 0,
+          content: await EmailService.renderBookingConfirmed({
             orders: ordersByEmail.get(customer.email)!,
             message,
             customerName: customer.name,
-            resignationCode: customer.resignationCode,
-          });
-        })
+            resignationCode: await this.ensureResignationCode(customer),
+          }),
+        }))
     );
-    this.logBulkSend(`confirmation of ${offers.map((o) => `"${o.name}"`).join(', ')}`, results);
+    await DistributionService.enqueue(EmailKind.BOOKING_CONFIRMED, `Confirmation : ${offerNames(offers)}`, emails);
   }
 
-  private static logBulkSend(label: string, results: Array<PromiseSettledResult<void>>): void {
-    const failed = results.filter((result) => result.status === 'rejected').length;
-    console.log(`[email] ${label}: ${results.length - failed} sent, ${failed} failed`);
+  // older customers may not have a resignation code yet — assign one lazily
+  private static async ensureResignationCode(customer: Customer): Promise<string> {
+    if (!customer.resignationCode) {
+      customer.resignationCode = nanoid(16);
+      await MongoService.upsertCustomer(customer);
+    }
+    return customer.resignationCode;
   }
+}
+
+// the batch label managers see on the email progress panel
+function offerNames(offers: Array<Offer>): string {
+  return offers.map((offer) => offer.name).join(', ');
 }

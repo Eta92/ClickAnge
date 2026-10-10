@@ -3,8 +3,11 @@ import { CreateEmailOptions, Resend } from 'resend';
 import { BookingConfirmed, OfferPublished, VerificationCode, renderEmail } from '../emails';
 import { ConfirmedOrder } from '../emails/BookingConfirmed';
 import { appUrl } from '../emails/theme';
+import { EmailContent } from '../models/email.model';
 import { Offer } from '../models/offer.model';
 
+// Renders and delivers emails. Deciding when a bulk email goes out (daily quota,
+// send window, priority) is DistributionService's job, not this one's.
 const FROM = {
   verify: "Click'Ange <clickange-verify@clickange.etappli.fr>",
   offer: "Click'Ange <clickange-nouveau@clickange.etappli.fr>",
@@ -63,15 +66,27 @@ export class EmailService {
     }, delay);
   }
 
-  // sends one email; rate-limit rejections are retried with backoff
-  private static async send(options: CreateEmailOptions, lane: 'urgent' | 'bulk' = 'bulk'): Promise<void> {
+  // hands one email to the provider; rate-limit rejections are retried with backoff.
+  // Anything else throws, with the provider's error code as `name` when it gave one.
+  // The idempotency key makes a retry of an email the provider already took a no-op.
+  public static async deliver(
+    to: string,
+    content: EmailContent,
+    { lane = 'bulk', idempotencyKey }: { lane?: 'urgent' | 'bulk'; idempotencyKey?: string } = {}
+  ): Promise<void> {
     const replyTo = process.env.EMAIL_REPLY_TO;
+    const options: CreateEmailOptions = {
+      from: content.from,
+      to,
+      subject: content.subject,
+      html: content.html ?? '',
+      text: content.text ?? '',
+      ...(content.headers ? { headers: content.headers } : {}),
+      ...(replyTo ? { replyTo } : {}),
+    };
     for (let attempt = 1; ; attempt++) {
       await this.nextSlot(lane);
-      const { error } = await this.resend.emails.send({
-        ...options,
-        ...(replyTo ? { replyTo } : {}),
-      });
+      const { error } = await this.resend.emails.send(options, idempotencyKey ? { idempotencyKey } : undefined);
 
       if (!error) return;
 
@@ -79,35 +94,34 @@ export class EmailService {
         await wait(RETRY_BASE_MS * 2 ** (attempt - 1));
         continue;
       }
-      console.error(`Resend error (to ${options.to}):`, error);
-      throw new Error(error.message);
+      console.error(`Resend error (to ${to}):`, error);
+      const failure = new Error(error.message);
+      failure.name = error.name;
+      throw failure;
     }
   }
 
-  public static async sendVerificationCode({ to, code }: { to: string; code: string }): Promise<void> {
+  public static async renderVerificationCode(code: string): Promise<EmailContent> {
     const { html, text } = await renderEmail(React.createElement(VerificationCode, { code }));
-    await this.send({
+    return {
       from: FROM.verify,
-      to,
       subject: `Votre code de vérification Click'Ange : ${code}`,
       html,
       text,
-    }, 'urgent');
+    };
   }
 
-  public static async sendOfferPublished({
-    to,
+  public static async renderOfferPublished({
     offers,
     message,
     customerName,
     resignationCode,
   }: {
-    to: string;
     offers: Array<Offer>;
     message?: string;
     customerName?: string;
     resignationCode: string;
-  }): Promise<void> {
+  }): Promise<EmailContent> {
     const { html, text } = await renderEmail(
       React.createElement(OfferPublished, {
         offers,
@@ -116,9 +130,8 @@ export class EmailService {
         unsubscribeUrl: unsubscribeUrl(resignationCode),
       })
     );
-    await this.send({
+    return {
       from: FROM.offer,
-      to,
       subject:
         offers.length === 1
           ? `Nouvelle offre dans le réseau des anges : ${offers[0].name}`
@@ -126,22 +139,20 @@ export class EmailService {
       html,
       text,
       headers: listUnsubscribeHeaders(resignationCode),
-    });
+    };
   }
 
-  public static async sendBookingConfirmed({
-    to,
+  public static async renderBookingConfirmed({
     orders,
     message,
     customerName,
     resignationCode,
   }: {
-    to: string;
     orders: Array<ConfirmedOrder>;
     message?: string;
     customerName?: string;
     resignationCode: string;
-  }): Promise<void> {
+  }): Promise<EmailContent> {
     const { html, text } = await renderEmail(
       React.createElement(BookingConfirmed, {
         orders,
@@ -150,16 +161,13 @@ export class EmailService {
         unsubscribeUrl: unsubscribeUrl(resignationCode),
       })
     );
-    await this.send({
+    return {
       from: FROM.confirmation,
-      to,
       subject:
-        orders.length === 1
-          ? `Votre commande est confirmée : ${orders[0].offer.name}`
-          : `Vos ${orders.length} commandes sont confirmées`,
+        orders.length === 1 ? `Votre commande est confirmée : ${orders[0].offer.name}` : `Vos ${orders.length} commandes sont confirmées`,
       html,
       text,
       headers: listUnsubscribeHeaders(resignationCode),
-    });
+    };
   }
 }

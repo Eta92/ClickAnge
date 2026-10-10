@@ -1,6 +1,7 @@
-import { Collection, Db, MongoClient } from 'mongodb';
+import { Collection, Db, MongoClient, ObjectId } from 'mongodb';
 import { Booking } from '../models/booking.model';
 import { Customer, Role } from '../models/customer.model';
+import { EmailBatchProgress, EmailRecord, EmailStatus } from '../models/email.model';
 import { Offer } from '../models/offer.model';
 import { SyncHelper } from '../helpers/sync.helper';
 
@@ -12,6 +13,7 @@ export class MongoService {
   private static offerCollection: Collection<Offer>;
   private static bookingCollection: Collection<Booking>;
   private static customerCollection: Collection<Customer>;
+  private static emailCollection: Collection<EmailRecord>;
 
   public static init(): void {
     this.mongoClient = new MongoClient(this.mongodburl);
@@ -22,6 +24,10 @@ export class MongoService {
         this.offerCollection = this.mongoDB.collection('offers');
         this.bookingCollection = this.mongoDB.collection('bookings');
         this.customerCollection = this.mongoDB.collection('customers');
+        this.emailCollection = this.mongoDB.collection('emails');
+        // the send queue's order, and the daily quota count
+        void this.emailCollection.createIndex({ status: 1, priority: 1, rank: -1, createdAt: 1 });
+        void this.emailCollection.createIndex({ sentAt: 1 });
 
         this.mongoInit = true;
         SyncHelper.initOffers();
@@ -254,5 +260,105 @@ export class MongoService {
     } catch (err) {
       console.log('Error deleting customer:', err);
     }
+  }
+
+  // region EMAILS
+
+  // queues or logs emails; throws when they could not be stored, so the caller
+  // knows they will never go out
+  public static async insertEmails(records: Array<EmailRecord>): Promise<void> {
+    if (!this.mongoInit) {
+      throw new Error('MongoDB not initialized');
+    }
+    if (records.length === 0) return;
+    await this.emailCollection.insertMany(records);
+  }
+
+  // emails that used the provider's quota since `since`: sent ones, plus any in flight
+  public static async countEmailsSentSince(since: number): Promise<number> {
+    if (!this.mongoInit) return 0;
+    return await this.emailCollection.countDocuments({
+      $or: [{ status: EmailStatus.SENT, sentAt: { $gte: since } }, { status: EmailStatus.SENDING }],
+    });
+  }
+
+  public static async countPendingEmails(): Promise<number> {
+    if (!this.mongoInit) return 0;
+    return await this.emailCollection.countDocuments({ status: EmailStatus.PENDING });
+  }
+
+  // takes the next email to send — confirmations first, then the most recently
+  // connected customers — and marks it in flight
+  public static async claimNextEmail(now: number): Promise<EmailRecord | null> {
+    if (!this.mongoInit) return null;
+    const result = await this.emailCollection.findOneAndUpdate(
+      { status: EmailStatus.PENDING, $or: [{ retryAt: { $exists: false } }, { retryAt: { $lte: now } }] },
+      { $set: { status: EmailStatus.SENDING }, $inc: { attempts: 1 } },
+      { sort: { priority: 1, rank: -1, createdAt: 1 }, returnDocument: 'after' }
+    );
+    return result.value;
+  }
+
+  public static async markEmailSent(id: ObjectId, sentAt: number): Promise<void> {
+    if (!this.mongoInit) return;
+    await this.emailCollection.updateOne(
+      { _id: id },
+      { $set: { status: EmailStatus.SENT, sentAt }, $unset: { 'content.html': '', 'content.text': '', retryAt: '', error: '' } }
+    );
+  }
+
+  // gives up on an email for good — FAILED or SKIPPED, with the reason
+  public static async closeEmail(id: ObjectId, status: EmailStatus.FAILED | EmailStatus.SKIPPED, error: string): Promise<void> {
+    if (!this.mongoInit) return;
+    await this.emailCollection.updateOne({ _id: id }, { $set: { status, error }, $unset: { 'content.html': '', 'content.text': '' } });
+  }
+
+  // puts an email back in the queue, optionally not to be retried before `retryAt`
+  public static async requeueEmail(id: ObjectId, retryAt: number | null, error: string): Promise<void> {
+    if (!this.mongoInit) return;
+    await this.emailCollection.updateOne({ _id: id }, { $set: { status: EmailStatus.PENDING, error, ...(retryAt != null ? { retryAt } : {}) } });
+  }
+
+  // emails left in flight by a crash or restart go back to the queue; the
+  // interrupted attempt is refunded so the retry reuses its idempotency key
+  public static async requeueInFlightEmails(): Promise<number> {
+    if (!this.mongoInit) return 0;
+    const result = await this.emailCollection.updateMany(
+      { status: EmailStatus.SENDING },
+      { $set: { status: EmailStatus.PENDING }, $inc: { attempts: -1 } }
+    );
+    return result.modifiedCount;
+  }
+
+  // per-batch counts for the batches created since `since` or still waiting to go out
+  public static async getEmailBatchProgress(since: number): Promise<Array<EmailBatchProgress>> {
+    if (!this.mongoInit) return [];
+    const batchIds = await this.emailCollection.distinct('batchId', {
+      batchId: { $exists: true },
+      $or: [{ createdAt: { $gte: since } }, { status: { $in: [EmailStatus.PENDING, EmailStatus.SENDING] } }],
+    });
+    if (batchIds.length === 0) return [];
+
+    const countOf = (statuses: Array<EmailStatus>) => ({ $sum: { $cond: [{ $in: ['$status', statuses] }, 1, 0] } });
+    return await this.emailCollection
+      .aggregate<EmailBatchProgress>([
+        { $match: { batchId: { $in: batchIds } } },
+        {
+          $group: {
+            _id: '$batchId',
+            label: { $first: '$batchLabel' },
+            kind: { $first: '$kind' },
+            createdAt: { $min: '$createdAt' },
+            total: { $sum: 1 },
+            sent: countOf([EmailStatus.SENT]),
+            pending: countOf([EmailStatus.PENDING, EmailStatus.SENDING]),
+            failed: countOf([EmailStatus.FAILED]),
+            skipped: countOf([EmailStatus.SKIPPED]),
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $project: { _id: 0, batchId: '$_id', label: 1, kind: 1, createdAt: 1, total: 1, sent: 1, pending: 1, failed: 1, skipped: 1 } },
+      ])
+      .toArray();
   }
 }

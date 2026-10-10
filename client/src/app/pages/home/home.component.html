@@ -59,6 +59,9 @@
           </button>
         </div>
       </div>
+      @if (isManager) {
+        <app-email-progress />
+      }
     } @else {
       <h2 class="section-title">Offres Disponibles</h2>
     }

@@ -1,0 +1,61 @@
+@if (progress(); as p) {
+  <section class="email-progress" aria-labelledby="email-progress-title">
+    <div class="progress-head">
+      <h3 id="email-progress-title">Envoi des e-mails</h3>
+      <span class="daily-usage">
+        {{ p.sentToday }} / {{ p.dailyCap }} aujourd'hui
+      </span>
+    </div>
+    <progress
+      class="daily-bar"
+      [value]="p.sentToday"
+      [max]="p.dailyCap"
+      aria-label="E-mails envoyés aujourd'hui"
+    ></progress>
+
+    @if (pendingCount() > 0) {
+      <p class="queue-status" role="status">
+        {{ pendingCount() }} e-mail{{ pendingCount() > 1 ? "s" : "" }} en attente
+        @if (resumesAt(); as at) {
+          — reprise le {{ at | date: "EEE d MMM 'à' HH:mm" }}
+        } @else {
+          — envoi en cours…
+        }
+      </p>
+    }
+
+    @if (batches().length > 0) {
+      <ul class="batch-list">
+        @for (batch of batches(); track batch.batchId) {
+          <li class="batch">
+            <div class="batch-head">
+              <span class="batch-kind">{{ kindLabels[batch.kind] }}</span>
+              <span class="batch-label">{{ batch.label }}</span>
+              <span class="batch-count">{{ batch.sent }} / {{ batch.total }}</span>
+            </div>
+            <progress
+              [value]="batch.sent + batch.failed + batch.skipped"
+              [max]="batch.total"
+              [attr.aria-label]="'Progression : ' + batch.label"
+            ></progress>
+            <p class="batch-meta">
+              Créé le {{ batch.createdAt | date: "EEE d MMM 'à' HH:mm" }}
+              @if (batch.pending > 0) {
+                · {{ batch.pending }} en attente
+              }
+              @if (batch.skipped > 0) {
+                · {{ batch.skipped }} ignoré{{ batch.skipped > 1 ? "s" : "" }}
+                (désabonnés)
+              }
+              @if (batch.failed > 0) {
+                <span class="batch-failed">
+                  · {{ batch.failed }} échec{{ batch.failed > 1 ? "s" : "" }}
+                </span>
+              }
+            </p>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+}

@@ -8,6 +8,7 @@ import { LoginFormComponent } from '../../core/components/login-form/login-form.
 import { CreateOfferChoiceComponent } from '../../core/components/create-offer-choice/create-offer-choice.component';
 import { EditProfileFormComponent } from '../../core/components/edit-profile-form/edit-profile-form.component';
 import { ManageOffersComponent } from '../../core/components/manage-offers/manage-offers.component';
+import { EmailProgressComponent } from '../../core/components/email-progress/email-progress.component';
 
 const routes: Routes = [
   {
@@ -27,6 +28,7 @@ const routes: Routes = [
     CreateOfferChoiceComponent,
     EditProfileFormComponent,
     ManageOffersComponent,
+    EmailProgressComponent,
   ],
 })
 export class HomeModule {}

@@ -7,6 +7,7 @@ import { Offer, OfferStatus } from '../models/offer.model';
 import { attachRole, requiredRole, socketHasRole } from '../helpers/socket-auth.helper';
 import { BookingService } from './booking.service';
 import { CustomerService } from './customer.service';
+import { DistributionService, MANAGERS_ROOM } from './distribution.service';
 import { MemberService } from './member.service';
 import { CreateOfferInput, OfferService } from './offer.service';
 import { MongoService } from './mongo.service';
@@ -28,6 +29,8 @@ export class SocketService {
     setInterval(() => this.checkAutoCloseOffers(), AUTO_CLOSE_CHECK_INTERVAL_MS);
     this.checkAutoCloseOffers();
 
+    DistributionService.init(this.io);
+
     this.io.use(attachRole);
 
     this.io.sockets.on('connection', (socket: Socket) => {
@@ -39,6 +42,11 @@ export class SocketService {
         ''
       );
       console.log('═╦═ IP ' + socket.data.ip + ' has connected to the server');
+
+      // managers get the live email progress pushed to them
+      if (socketHasRole(socket, Role.MANAGER)) {
+        socket.join(MANAGERS_ROOM);
+      }
 
       socket.on('SocketStarted', () => {
         socket.emit('ClientInit');
@@ -173,6 +181,17 @@ export class SocketService {
           try {
             const offers = await OfferService.archiveOffers(this.io, parseUuids(data));
             socket.emit('OffersBulkDone', { action: 'archive', count: offers.length });
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
+
+      // ---- email distribution progress ----
+      socket.on('getEmailProgress', async () => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            socket.emit('EmailProgress', await DistributionService.getProgress());
           } catch (err: any) {
             socket.emit('ToasterError', err.message);
           }

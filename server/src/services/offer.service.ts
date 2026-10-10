@@ -261,8 +261,8 @@ export class OfferService {
     return offer;
   }
 
-  // the announcement is throttled to Resend's rate limit, so a large list takes a
-  // while — don't hold the manager's request open until the last email is out.
+  // rendering one email per subscriber takes a moment — don't hold the manager's
+  // request open for it. The emails then wait in the distribution queue.
   // A snapshot is sent so later edits to the live offers don't change mails mid-batch.
   private static notifySubscribersInBackground(offers: Array<Offer>, message?: string): void {
     CustomerService.notifySubscribers(structuredClone(offers), message).catch((err) =>

@@ -505,7 +505,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
       archive: `archivée${plural}`,
     };
     this.toastr.success(
-      result.notified ? "Les e-mails sont en cours d'envoi." : '',
+      result.notified ? 'Les e-mails sont planifiés, suivez leur envoi ci-dessous.' : '',
       `${result.count} offre${plural} ${done[result.action]}`,
     );
     // fired from the socket ack, outside Angular's zone — refresh the view explicitly
