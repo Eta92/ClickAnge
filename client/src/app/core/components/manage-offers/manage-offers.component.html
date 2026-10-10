@@ -2,7 +2,9 @@
 <div class="modal-backdrop" (click)="cancel()"></div>
 
 <div
+  #dialog
   class="manage-modal"
+  tabindex="-1"
   role="dialog"
   aria-modal="true"
   aria-labelledby="manage-offers-title"
@@ -34,7 +36,7 @@
       <p class="confirm-summary">
         {{ preview().length }} offre{{ preview().length > 1 ? "s" : "" }}
         passera{{ preview().length > 1 ? "ont" : "" }} au statut
-        <strong>{{ statusLabels[preview()[0].target] }}</strong>.
+        <strong>{{ statusLabels[targetStatus[action]] }}</strong>.
       </p>
 
       @if (warningCount() > 0) {
@@ -51,7 +53,7 @@
               <span class="preview-name">{{ item.offer.name }}</span>
               <span class="preview-transition">
                 {{ statusLabels[item.offer.status] }} →
-                {{ statusLabels[item.target] }}
+                {{ statusLabels[targetStatus[action]] }}
               </span>
             </div>
             @for (warning of item.warnings; track warning) {
@@ -140,7 +142,7 @@
     </div>
 
     <div class="modal-body">
-      <div class="quick-select" aria-label="Sélection rapide">
+      <div class="quick-select" role="group" aria-label="Sélection rapide">
         <span class="quick-select-label">Sélectionner :</span>
         <button type="button" (click)="selectStatus(OfferStatus.DRAFT)">
           Brouillons

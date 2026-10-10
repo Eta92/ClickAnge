@@ -252,7 +252,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Human-readable status label */
   getBookingStatusLabel(status: BookingStatus): string {
     const labels = [
-      'En attente', // PENDING
+      'Enregistré', // PENDING
       'Confirmée', // CONFIRMED
       'Annulée', // CANCELLED
       'Retirée', // FULFILLED

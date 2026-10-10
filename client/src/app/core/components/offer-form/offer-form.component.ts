@@ -299,6 +299,15 @@ export class OfferFormComponent implements OnInit, OnChanges, OnDestroy {
     this.formValue.products = products.filter((_, i) => i !== index);
   }
 
+  /** Swaps a product with its neighbour (direction -1 = up, 1 = down). */
+  moveProduct(index: number, direction: -1 | 1): void {
+    const products = [...(this.formValue.products ?? [])];
+    const target = index + direction;
+    if (target < 0 || target >= products.length) return;
+    [products[index], products[target]] = [products[target], products[index]];
+    this.formValue.products = products;
+  }
+
   // ---- global (shared) quantity fields ----
 
   /** True when this quantity field is filled once for the whole offer. */

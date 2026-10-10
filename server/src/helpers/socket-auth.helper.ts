@@ -30,6 +30,8 @@ export async function attachRole(socket: Socket, next: (err?: Error) => void): P
         socket.data.role = resolveRole(customer);
         socket.data.email = customer.email;
         console.log('═╦═ ' + customer.email + ' has authenticated as ' + socket.data.role);
+        // Not awaited: the connection shouldn't wait on a bookkeeping write.
+        void MongoService.setCustomerActivity(customer.email, 'lastConnectedAt');
       }
     } catch (err) {
       // Leaves the socket anonymous, so every guarded handler refuses it.

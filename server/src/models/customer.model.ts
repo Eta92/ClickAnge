@@ -20,6 +20,7 @@ export interface Customer {
   resignationCode?: string;
   createdAt: number;
   lastBookingAt?: number;
+  lastConnectedAt?: number;
 }
 
 export interface Member {
@@ -31,6 +32,7 @@ export interface Member {
   isSubscribed?: boolean;
   createdAt: number;
   lastBookingAt?: number;
+  lastConnectedAt?: number;
 }
 
 export interface AuthenticatedProfile extends Member {

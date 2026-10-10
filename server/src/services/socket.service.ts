@@ -402,6 +402,18 @@ export class SocketService {
           }
         }
       });
+
+      socket.on('deleteMember', async (data: { email: string }) => {
+        if (requiredRole(Role.MANAGER, socket)) {
+          try {
+            const email = await MemberService.deleteMember(data?.email, socket.data.email);
+            socket.emit('MemberDeleted', email);
+            this.pushDeletion(email);
+          } catch (err: any) {
+            socket.emit('ToasterError', err.message);
+          }
+        }
+      });
     });
   }
 
@@ -410,6 +422,17 @@ export class SocketService {
       if (client.data.email === member.email) {
         client.data.role = member.role;
         client.emit('ProfileRoleChanged', member);
+      }
+    }
+  }
+
+  // signs the deleted member's open sessions out, so they lose access right away
+  private static pushDeletion(email: string): void {
+    for (const client of this.io.sockets.sockets.values()) {
+      if (client.data.email === email) {
+        client.data.role = null;
+        client.data.email = null;
+        client.emit('ProfileDeleted');
       }
     }
   }

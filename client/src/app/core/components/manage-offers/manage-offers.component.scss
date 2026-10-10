@@ -9,6 +9,7 @@
 
 .manage-modal {
   position: fixed;
+  outline: none;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -128,10 +129,19 @@ button:disabled {
   margin: 0;
 }
 
+// Lists scroll on their own past ~5 rows, so the message box and the action
+// buttons stay in view however many offers there are.
+.offer-select-list,
+.preview-list {
+  flex-shrink: 0;
+  max-height: min(18rem, 35vh);
+  overflow-y: auto;
+  padding: 0 0.25rem 0 0; // room for the scrollbar; no list indent
+}
+
 .offer-select-list {
   list-style: none;
   margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -309,7 +319,6 @@ textarea {
 .preview-list {
   list-style: none;
   margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;

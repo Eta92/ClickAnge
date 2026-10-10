@@ -136,8 +136,8 @@
                 type="number"
                 name="globalUnitPrice"
                 [(ngModel)]="formValue.globalQuantities!.unitPrice"
-                min="0.01"
-                step="0.01"
+                min="0"
+                step="any"
                 required
               />
             </label>
@@ -221,8 +221,8 @@
                     type="number"
                     name="promotionPrice"
                     [(ngModel)]="formValue.globalQuantities!.promotionPrice"
-                    min="0.01"
-                    step="0.01"
+                    min="0"
+                    step="any"
                     required
                   />
                 </label>
@@ -249,6 +249,29 @@
               >
                 ✕
               </button>
+
+              <div class="product-move">
+                <button
+                  type="button"
+                  class="btn-move-product"
+                  [disabled]="$first"
+                  (click)="moveProduct($index, -1)"
+                  title="Monter ce produit"
+                  aria-label="Monter ce produit"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  class="btn-move-product"
+                  [disabled]="$last"
+                  (click)="moveProduct($index, 1)"
+                  title="Descendre ce produit"
+                  aria-label="Descendre ce produit"
+                >
+                  ▼
+                </button>
+              </div>
             }
 
             <div class="form-row">
@@ -294,8 +317,8 @@
                       type="number"
                       name="productUnitPrice{{ $index }}"
                       [(ngModel)]="product.unitPrice"
-                      min="0.01"
-                      step="0.01"
+                      min="0"
+                      step="any"
                       required
                     />
                   </label>

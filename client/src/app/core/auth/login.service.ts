@@ -226,6 +226,16 @@ export class LoginService implements OnDestroy {
       this.mergeServerProfile(member);
     });
 
+    // Pushed by the server when a manager deletes this account while it is open.
+    this.socketService.on<void>('ProfileDeleted').subscribe(() => {
+      this.clearStoredProfile();
+      this.toastr.warning(
+        'Votre compte a été supprimé par un gestionnaire.',
+        'Déconnexion',
+      );
+      setTimeout(() => window.location.reload(), 3000);
+    });
+
     this.socketService
       .on<void>('ClientInit')
       .subscribe(() => this.refreshProfile());

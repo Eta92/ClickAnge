@@ -266,6 +266,47 @@
     }
   }
 
+  // Centered on the top border so it never covers inputs
+  .product-move {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    border: 1px solid var(--color-sage);
+    border-radius: 15px;
+    background: var(--color-cream);
+    overflow: hidden;
+  }
+
+  .btn-move-product {
+    width: 40px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-sage);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+
+    & + & {
+      border-left: 1px solid var(--color-sage);
+    }
+
+    &:hover:not(:disabled) {
+      opacity: 0.75;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  }
+
   .min-max-row {
     display: flex;
     align-items: center;

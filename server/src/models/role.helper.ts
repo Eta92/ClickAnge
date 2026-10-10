@@ -38,6 +38,7 @@ export function toMember(customer: Customer): Member {
     isSubscribed: customer.isSubscribed,
     createdAt: customer.createdAt,
     lastBookingAt: customer.lastBookingAt,
+    lastConnectedAt: customer.lastConnectedAt,
   };
 }
 

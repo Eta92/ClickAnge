@@ -357,6 +357,32 @@
     border-bottom: 2px solid var(--color-sage);
   }
 
+  // The header buttons inherit the th typography so sorting looks like plain titles.
+  .sort-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-green);
+    }
+  }
+
+  .sort-indicator {
+    display: inline-block;
+    min-width: 0.75em;
+    font-size: 0.625rem;
+  }
+
   tbody td {
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
@@ -397,6 +423,16 @@
 .member-date {
   white-space: nowrap;
   color: var(--color-sage);
+}
+
+// Same width for the three date columns; their longer titles wrap inside it.
+.members-table th.member-date-col {
+  width: 150px;
+
+  .sort-header {
+    white-space: normal;
+    text-align: left;
+  }
 }
 
 // Role colours are shared by the read-only badge and the promotion dropdown.
@@ -457,5 +493,144 @@
 
   &.pending {
     color: var(--color-tan);
+  }
+}
+
+.member-subscribed {
+  width: 1%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.subscribed-state {
+  font-weight: 700;
+
+  &.yes {
+    color: var(--color-green);
+  }
+
+  &.no {
+    color: var(--color-tan);
+  }
+}
+
+// ---- deletion ----
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.member-actions {
+  width: 1%;
+  text-align: right;
+}
+
+.btn-delete {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--color-sage);
+  border-radius: 8px;
+  color: var(--color-sage);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+
+  &:hover {
+    color: #d32f2f;
+    border-color: #d32f2f;
+    background: rgba(211, 47, 47, 0.08);
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(var(--color-green-rgb), 0.6);
+  z-index: 1000;
+}
+
+.confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 2rem));
+  padding: 1.5rem;
+  background: var(--color-cream);
+  border: 2px solid var(--color-sage);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+
+  h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-green);
+  }
+
+  p {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-green);
+  }
+}
+
+.confirm-email {
+  word-break: break-all;
+  color: var(--color-sage);
+}
+
+.confirm-note {
+  color: var(--color-sage) !important;
+  font-size: 0.8125rem !important;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+
+  button {
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.btn-cancel {
+  background: #fff;
+  color: var(--color-green);
+  border: 1px solid var(--color-sage);
+}
+
+.btn-confirm-delete {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+
+  &:hover:not(:disabled) {
+    opacity: 0.88;
   }
 }

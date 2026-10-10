@@ -2,12 +2,16 @@ import { DatePipe } from '@angular/common';
 import {
   Component,
   DestroyRef,
+  ElementRef,
+  afterNextRender,
   computed,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   BulkOfferAction,
   BulkOfferResult,
@@ -40,6 +44,8 @@ const ACTION_TITLES: Record<BulkOfferAction, string> = {
 })
 export class ManageOffersComponent {
   private readonly bookingService = inject(BookingService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = viewChild.required<ElementRef<HTMLElement>>('dialog');
 
   readonly offers = input.required<Array<Offer>>();
 
@@ -49,6 +55,7 @@ export class ManageOffersComponent {
   readonly OfferStatus = OfferStatus;
   readonly statusLabels = OFFER_STATUS_LABELS;
   readonly actionTitles = ACTION_TITLES;
+  readonly targetStatus = TARGET_STATUS;
 
   readonly selected = signal<ReadonlySet<string>>(new Set());
   readonly message = signal('');
@@ -71,14 +78,13 @@ export class ManageOffersComponent {
     this.listedOffers().filter((o) => this.selected().has(o.uuid)),
   );
 
-  /** Each selected offer with what the pending action will do to it. */
+  /** Each selected offer with the warnings the pending action raises for it. */
   readonly preview = computed(() => {
     const action = this.pendingAction();
     if (!action) return [];
     const now = Date.now();
     return this.selectedOffers().map((offer) => ({
       offer,
-      target: TARGET_STATUS[action],
       warnings: bulkActionWarnings(offer, action, this.notify(), now),
     }));
   });
@@ -93,7 +99,9 @@ export class ManageOffersComponent {
   );
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.stopCountdown());
+    this.destroyRef.onDestroy(() => this.stopCountdown());
+    // move keyboard focus into the dialog so Tab / screen readers start there
+    afterNextRender(() => this.dialog().nativeElement.focus());
   }
 
   isSelected(offer: Offer): boolean {
@@ -159,6 +167,7 @@ export class ManageOffersComponent {
         this.sendsEmail(),
         this.message().trim(),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.submitting.set(false);

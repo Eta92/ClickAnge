@@ -90,6 +90,26 @@ export class MemberService {
     return toMember({ ...customer, role });
   }
 
+  /**
+   * Removes a member's record, which revokes their access. Their past bookings
+   * are kept so producers still see who ordered what. A manager cannot delete
+   * their own account from here, so the page can never lock its last manager out.
+   */
+  public static async deleteMember(email: string, requesterEmail: string): Promise<string> {
+    const normalizedEmail = normalizeEmail(email);
+    if (normalizedEmail === requesterEmail) {
+      throw new Error('Vous ne pouvez pas supprimer votre propre compte');
+    }
+
+    const customer = await MongoService.getCustomerByEmail(normalizedEmail);
+    if (!customer) {
+      throw new Error('Membre introuvable');
+    }
+
+    await MongoService.deleteCustomer(normalizedEmail);
+    return normalizedEmail;
+  }
+
   private static buildMemberRecord(email: string, name?: string): Customer {
     return {
       uuid: nanoid(10),

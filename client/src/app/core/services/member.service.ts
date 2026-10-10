@@ -58,6 +58,16 @@ export class MemberService {
     );
   }
 
+  /** Removes a member's record — the server answers with the deleted email. */
+  deleteMember(email: string): Observable<string> {
+    return this.request<string>('deleteMember', { email }, 'MemberDeleted');
+  }
+
+  /** Drops a row from the cached list once the server confirms the deletion. */
+  removeMember(email: string): void {
+    this.members.update((members) => members.filter((m) => m.email !== email));
+  }
+
   /** Replaces a row in the cached list once the server confirms the change. */
   applyMember(member: Member): void {
     this.members.update((members) => {

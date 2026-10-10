@@ -121,9 +121,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
   exportExcel(): void {
     // One column per product, in the offer's product order, with any extra
     // product names found in bookings appended afterwards.
-    const productNames = [
-      ...(this.offer?.products.map((p) => p.name) ?? []),
-    ];
+    const productNames = [...(this.offer?.products.map((p) => p.name) ?? [])];
     for (const b of this.bookings()) {
       for (const purchase of b.purchases) {
         if (!productNames.includes(purchase.name)) {
@@ -133,9 +131,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
     }
 
     const rows = this.bookings().map((b) => {
-      const quantities = new Map(
-        b.purchases.map((p) => [p.name, p.quantity]),
-      );
+      const quantities = new Map(b.purchases.map((p) => [p.name, p.quantity]));
       return [
         b.customerName ?? '',
         b.customerEmail,
@@ -144,7 +140,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
           ? 'Confirmé'
           : b.status === BookingStatus.CANCELLED
             ? 'Annulé'
-            : 'En attente',
+            : 'Enregistré',
         b.note ?? '',
         DateTime.fromMillis(b.confirmedAt || b.createdAt).toFormat(
           'dd/MM/yyyy HH:mm',
@@ -319,7 +315,7 @@ export class OverviewComponent implements OnInit, OnDestroy {
   }
 
   getStatusLabel(status: number): string {
-    const labels = ['En attente', 'Confirmé', 'Annulé', 'Exécuté'];
+    const labels = ['Enregistré', 'Confirmé', 'Annulé', 'Exécuté'];
     return labels[status] || 'Inconnu';
   }
 

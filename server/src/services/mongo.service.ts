@@ -198,7 +198,7 @@ export class MongoService {
     try {
       await this.customerCollection.updateOne(
         { email },
-        { $set: { emailVerified: true }, $unset: { verificationCode: '', verificationExpires: '' } }
+        { $set: { emailVerified: true, lastConnectedAt: Date.now() }, $unset: { verificationCode: '', verificationExpires: '' } }
       );
     } catch (err) {
       console.log('Error confirming customer email:', err);
@@ -224,6 +224,35 @@ export class MongoService {
       await this.customerCollection.updateOne({ email }, { $set: { role } });
     } catch (err) {
       console.log('Error updating customer role:', err);
+    }
+  }
+
+  // stamps one of the customer's activity dates, used to spot inactive members
+  public static async setCustomerActivity(
+    email: string,
+    field: 'lastConnectedAt' | 'lastBookingAt',
+    at: number = Date.now()
+  ): Promise<void> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return;
+    }
+    try {
+      await this.customerCollection.updateOne({ email }, { $set: { [field]: at } });
+    } catch (err) {
+      console.log(`Error updating customer ${field}:`, err);
+    }
+  }
+
+  public static async deleteCustomer(email: string): Promise<void> {
+    if (!this.mongoInit) {
+      console.log('MongoDB not initialized');
+      return;
+    }
+    try {
+      await this.customerCollection.deleteOne({ email });
+    } catch (err) {
+      console.log('Error deleting customer:', err);
     }
   }
 }

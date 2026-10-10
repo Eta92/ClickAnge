@@ -160,6 +160,7 @@ export class BookingService {
     this.bookingMap[booking.uuid] = booking;
     await MongoService.insertBooking(booking);
     await MongoService.upsertOffer(offer);
+    await MongoService.setCustomerActivity(customerEmail, 'lastBookingAt', booking.createdAt);
 
     this.io?.emit('OfferUpdated', offer);
     this.io?.emit('BookingCreated', booking);

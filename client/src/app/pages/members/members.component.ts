@@ -14,6 +14,21 @@ import { MemberService } from '../../core/services/member.service';
 
 type RoleFilter = Role | 'ALL';
 
+type SortKey =
+  | 'name'
+  | 'email'
+  | 'isSubscribed'
+  | 'role'
+  | 'emailVerified'
+  | 'createdAt'
+  | 'lastConnectedAt'
+  | 'lastBookingAt';
+
+interface SortState {
+  key: SortKey;
+  direction: 'asc' | 'desc';
+}
+
 @Component({
   standalone: false,
   selector: 'app-members',
@@ -49,6 +64,41 @@ export class MembersComponent implements OnInit {
         member.email.includes(needle) ||
         (member.name ?? '').toLowerCase().includes(needle)
       );
+    });
+  });
+
+  // --- sorting ---
+  readonly columns: ReadonlyArray<{ key: SortKey; label: string; class?: string }> = [
+    { key: 'name', label: 'Nom' },
+    { key: 'email', label: 'Email' },
+    { key: 'isSubscribed', label: 'Abonné', class: 'member-subscribed' },
+    { key: 'role', label: 'Rôle' },
+    { key: 'emailVerified', label: 'Inscription' },
+    { key: 'createdAt', label: 'Ajouté le', class: 'member-date-col' },
+    { key: 'lastConnectedAt', label: 'Dernière connexion', class: 'member-date-col' },
+    { key: 'lastBookingAt', label: 'Dernière réservation', class: 'member-date-col' },
+  ];
+
+  /** Null when the table keeps the server's order. */
+  readonly sort = signal<SortState | null>(null);
+
+  readonly sortedMembers = computed(() => {
+    const members = this.filteredMembers();
+    const sort = this.sort();
+    if (!sort) return members;
+    const sign = sort.direction === 'asc' ? 1 : -1;
+    return [...members].sort((a, b) => {
+      const left = this.sortValue(a, sort.key);
+      const right = this.sortValue(b, sort.key);
+      // Empty values stay at the bottom whichever way the column is sorted.
+      if (left === undefined || right === undefined) {
+        return left === right ? 0 : left === undefined ? 1 : -1;
+      }
+      const diff =
+        typeof left === 'string' && typeof right === 'string'
+          ? left.localeCompare(right, 'fr')
+          : (left as number) - (right as number);
+      return diff * sign;
     });
   });
 
@@ -98,6 +148,43 @@ export class MembersComponent implements OnInit {
 
   setRoleFilter(role: RoleFilter): void {
     this.roleFilter.set(role);
+  }
+
+  // --- sorting ---
+
+  /** Ascending, then descending, then back to the default order. */
+  toggleSort(key: SortKey): void {
+    const current = this.sort();
+    if (current?.key !== key) {
+      this.sort.set({ key, direction: 'asc' });
+    } else if (current.direction === 'asc') {
+      this.sort.set({ key, direction: 'desc' });
+    } else {
+      this.sort.set(null);
+    }
+  }
+
+  ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
+    const current = this.sort();
+    if (current?.key !== key) return 'none';
+    return current.direction === 'asc' ? 'ascending' : 'descending';
+  }
+
+  private sortValue(member: Member, key: SortKey): string | number | undefined {
+    switch (key) {
+      case 'name':
+        return member.name || undefined;
+      case 'email':
+        return member.email;
+      case 'isSubscribed':
+        return member.isSubscribed ? 1 : 0;
+      case 'role':
+        return ROLES.indexOf(member.role);
+      case 'emailVerified':
+        return member.emailVerified ? 1 : 0;
+      default:
+        return member[key];
+    }
   }
 
   // --- add a single member ---
@@ -189,6 +276,40 @@ export class MembersComponent implements OnInit {
         // Put the dropdown back on the role the server still holds.
         select.value = member.role;
         this.toastr.error(err.message, 'Promotion impossible');
+      },
+    });
+  }
+
+  // --- deletion ---
+
+  /** Member awaiting confirmation in the delete modal, null when it is closed. */
+  readonly memberToDelete = signal<Member | null>(null);
+  readonly isDeleting = signal(false);
+
+  askDelete(member: Member): void {
+    this.memberToDelete.set(member);
+  }
+
+  cancelDelete(): void {
+    if (this.isDeleting()) return;
+    this.memberToDelete.set(null);
+  }
+
+  confirmDelete(): void {
+    const member = this.memberToDelete();
+    if (!member || this.isDeleting()) return;
+
+    this.isDeleting.set(true);
+    this.memberService.deleteMember(member.email).subscribe({
+      next: (email) => {
+        this.memberService.removeMember(email);
+        this.isDeleting.set(false);
+        this.memberToDelete.set(null);
+        this.toastr.success(`${email} a été supprimé.`, 'Membre supprimé');
+      },
+      error: (err: Error) => {
+        this.isDeleting.set(false);
+        this.toastr.error(err.message, 'Suppression impossible');
       },
     });
   }
